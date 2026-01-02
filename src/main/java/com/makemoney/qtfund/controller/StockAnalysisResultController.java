@@ -67,6 +67,19 @@ public class StockAnalysisResultController {
     }
 
     /**
+     * 获取最新日期的所有数据
+     * GET /api/stock-analysis/latest
+     */
+    @GetMapping("/latest")
+    public ResponseEntity<List<StockAnalysisResult>> getLatest() {
+        Date latestDate = service.findLatestDate();
+        if (latestDate == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        return ResponseEntity.ok(service.findByTargetDate(latestDate));
+    }
+
+    /**
      * 根据交易所代码和合约代码查询
      * GET /api/stock-analysis/search?exchangeId={exchangeId}&instrumentId={instrumentId}
      */

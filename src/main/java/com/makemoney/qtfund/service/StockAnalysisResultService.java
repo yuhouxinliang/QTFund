@@ -145,6 +145,14 @@ public class StockAnalysisResultService {
     public void deleteAll() {
         repository.deleteAll();
     }
+
+    /**
+     * 获取最新日期
+     */
+    public Date findLatestDate() {
+        StockAnalysisResult result = repository.findFirstByOrderByTargetDateDesc();
+        return result != null ? result.getTargetDate() : null;
+    }
 }
 
 

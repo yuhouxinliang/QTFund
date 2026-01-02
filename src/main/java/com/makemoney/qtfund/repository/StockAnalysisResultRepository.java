@@ -39,6 +39,11 @@ public interface StockAnalysisResultRepository extends MongoRepository<StockAnal
      * 根据得分范围查询
      */
     List<StockAnalysisResult> findByScoreBetween(Double minScore, Double maxScore);
+
+    /**
+     * 获取最新日期的一条记录
+     */
+    StockAnalysisResult findFirstByOrderByTargetDateDesc();
 }
 
 

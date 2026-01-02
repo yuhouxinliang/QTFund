@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>量化策略监控驾驶舱 - 动量策略 v3.0</title>
+    
+    <!-- 使用 unpkg 源 -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/echarts/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/locale/zh-cn.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+    <style>
+        html, body { margin: 0; padding: 0; height: 100%; font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif; background-color: #f5f7fa; }
+        #app { height: 100%; display: flex; flex-direction: column; }
+        
+        /* 顶部导航 */
+        .header { background-color: #2c3e50; color: white; padding: 0 20px; height: 60px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-shrink: 0; }
+        .header h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; }
+        .header .meta-info { font-size: 12px; color: #bdc3c7; }
+
+        /* 主布局 */
+        .main-container { flex: 1; display: flex; overflow: hidden; }
+        
+        /* 左侧列表区 */
+        .left-panel { width: 500px; background: white; border-right: 1px solid #e6e6e6; display: flex; flex-direction: column; z-index: 10; flex-shrink: 0; }
+        .filter-bar { padding: 15px; border-bottom: 1px solid #ebeef5; background: #fff; }
+        .data-table-container { flex: 1; overflow: hidden; position: relative; } 
+        
+        /* 右侧图表区 */
+        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; background-color: #f0f2f5; overflow-y: auto; overflow-x: hidden; }
+        
+        /* 卡片通用样式 */
+        .chart-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; flex-direction: column; }
+        
+        /* 上半部分：趋势图 (固定高度) */
+        .top-section { height: 550px; flex-shrink: 0; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #ebeef5; padding-bottom: 15px; }
+        .etf-title { font-size: 24px; font-weight: bold; color: #303133; }
+        .etf-subtitle { color: #909399; font-size: 14px; margin-left: 10px; }
+        .stat-tags { display: flex; gap: 15px; margin-top: 10px; }
+        
+        .chart-controls { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; margin-bottom: 10px; background: #f9fafc; padding: 10px 20px; border-radius: 4px; }
+        .control-group { display: flex; align-items: center; gap: 10px; }
+        .control-label { font-weight: bold; color: #606266; font-size: 14px; }
+
+        #trendChart { flex: 1; width: 100%; min-height: 0; } /* min-height 0 for flex child */
+
+        /* 下半部分：深度分析区 */
+        .bottom-section { display: flex; gap: 20px; height: 350px; flex-shrink: 0; }
+        
+        /* 左栏：量化体检 */
+        .analysis-left { flex: 1; display: flex; flex-direction: column; }
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; }
+        .kpi-item { background: #f8f9fa; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .kpi-title { font-size: 13px; color: #909399; margin-bottom: 8px; }
+        .kpi-value { font-size: 24px; font-weight: bold; color: #303133; }
+        .kpi-desc { font-size: 12px; color: #67c23a; margin-top: 5px; }
+
+        /* 均线矩阵 */
+        .ma-matrix { display: flex; gap: 10px; width: 100%; justify-content: space-around; margin-top: 10px; }
+        .ma-box { flex: 1; padding: 8px 0; border-radius: 4px; text-align: center; color: white; font-size: 12px; font-weight: bold; opacity: 0.9; }
+        .ma-up { background-color: #67c23a; } /* 站上均线 */
+        .ma-down { background-color: #f56c6c; } /* 跌破均线 */
+
+        /* 右栏：关联与信号 */
+        .analysis-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* 颜色辅助类 */
+        .text-red { color: #f56c6c; font-weight: bold; }
+        .text-green { color: #67c23a; font-weight: bold; }
+        .rank-up { color: #f56c6c; font-weight: bold; } 
+        .rank-down { color: #67c23a; font-weight: bold; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #dcdfe6; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: #f5f7fa; }
+
+        #error-msg { position: fixed; top: 0; left: 0; width: 100%; background: #f56c6c; color: white; padding: 10px; text-align: center; z-index: 9999; display: none; }
+    </style>
+</head>
+<body>
+    <div id="error-msg"></div>
+
+    <div id="app">
+        <!-- 顶部 -->
+        <div class="header">
+            <h1>
+                <span>📈</span>
+                全市场 ETF 动量监控看板
+            </h1>
+            <div class="meta-info">数据源: 实时数据库 | 状态: {{ dataStatus }}</div>
+        </div>
+
+        <div class="main-container">
+            <!-- 左侧：ETF 列表 -->
+            <div class="left-panel">
+                <div class="filter-bar">
+                    <el-input v-model="searchText" placeholder="搜索代码/名称" style="margin-bottom: 10px;" clearable>
+                        <template #prefix>🔍</template>
+                    </el-input>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <el-input-number v-model="minAmount" :min="0" :step="1000" placeholder="最小成交额(万)" style="width: 100%;" :controls="false">
+                            <template #prefix>¥</template>
+                            <template #suffix>万</template>
+                        </el-input-number>
+                        <el-select v-model="exchangeFilter" placeholder="交易所" style="width: 100px;">
+                            <el-option label="全部" value=""></el-option>
+                            <el-option label="SH" value="SH"></el-option>
+                            <el-option label="SZ" value="SZ"></el-option>
+                        </el-select>
+                    </div>
+                     <!-- 日期选择 -->
+                     <el-date-picker
+                        v-model="targetDate"
+                        type="date"
+                        placeholder="选择数据日期"
+                        size="default"
+                        style="width: 100%;"
+                        format="YYYY-MM-DD"
+                        value-format="YYYY-MM-DD"
+                        @change="fetchData"
+                        :disabled-date="disabledDate"
+                    />
+                </div>
+
+                <div class="data-table-container">
+                    <el-table 
+                        :data="filteredList" 
+                        style="width: 100%; height: 100%;" 
+                        highlight-current-row
+                        @row-click="handleRowClick"
+                        :default-sort="{prop: 'score', order: 'descending'}"
+                        v-loading="loading"
+                        stripe
+                        border
+                    >
+                        <el-table-column prop="instrumentId" label="代码" width="80" fixed sortable></el-table-column>
+                        <el-table-column prop="instrumentName" label="名称" min-width="120" show-overflow-tooltip fixed>
+                            <template #default="scope">
+                                <div style="font-weight: 600; font-size: 14px;">{{ scope.row.instrumentName }}</div>
+                                <div style="font-size: 12px; color: #909399;">{{ scope.row.exchangeId }}</div>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="score" label="Score" width="90" sortable align="right">
+                            <template #default="scope">
+                                <span style="font-weight: bold; font-size: 15px; color: #303133;">{{ scope.row.score?.toFixed(1) }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="ranking" label="排名" width="85" sortable align="center">
+                            <template #default="scope">
+                                <el-tag size="small" :type="scope.row.ranking <= 10 ? 'danger' : (scope.row.ranking <= 50 ? 'warning' : 'info')" effect="dark" style="font-weight: bold;">
+                                    #{{ scope.row.ranking }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="rankingChange" label="变化" width="80" sortable align="right">
+                            <template #default="scope">
+                                <span v-if="scope.row.rankingChange > 0" class="rank-up">
+                                    ⬆ {{ scope.row.rankingChange }}
+                                </span>
+                                <span v-else-if="scope.row.rankingChange < 0" class="rank-down">
+                                    ⬇ {{ Math.abs(scope.row.rankingChange) }}
+                                </span>
+                                <span v-else style="color: #dcdfe6;">-</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="amount" label="成交(亿)" width="95" sortable align="right">
+                            <template #default="scope">
+                                {{ (scope.row.amount / 100000000).toFixed(2) }}
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+                <div style="padding: 10px; text-align: center; border-top: 1px solid #eee; color: #666; font-size: 12px; background: #fff;">
+                    共 {{ filteredList.length }} / {{ etfList.length }} 只标的
+                </div>
+            </div>
+
+            <!-- 右侧：详情与图表 -->
+            <div class="right-panel">
+                <template v-if="currentEtf">
+                    
+                    <!-- 1. 顶部趋势图区域 -->
+                    <div class="chart-card top-section">
+                        <div class="card-header">
+                            <div>
+                                <span class="etf-title">{{ currentEtf.instrumentName }}</span>
+                                <span class="etf-subtitle">{{ currentEtf.instrumentId }}.{{ currentEtf.exchangeId }}</span>
+                                <div class="stat-tags">
+                                    <el-tag effect="dark" type="danger" size="large">当前排名: #{{ currentEtf.ranking }}</el-tag>
+                                    <el-tag type="warning" effect="dark" size="large">Score: {{ currentEtf.score?.toFixed(2) }}</el-tag>
+                                    <el-tag type="info" effect="plain">成交额: {{ (currentEtf.amount / 10000).toFixed(0) }}万</el-tag>
+                                    <el-tag type="success" effect="plain">收盘价: {{ currentEtf.close }}</el-tag>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 交互控件 -->
+                        <div class="chart-controls">
+                            <div class="control-group">
+                                <span class="control-label">指标:</span>
+                                <el-radio-group v-model="chartMetric" @change="updateChart" size="small">
+                                    <el-radio-button label="score">动量得分</el-radio-button>
+                                    <el-radio-button label="ranking">全市场排名</el-radio-button>
+                                    <el-radio-button label="amount">成交金额</el-radio-button>
+                                </el-radio-group>
+                            </div>
+                            
+                            <div class="control-group">
+                                <span class="control-label">历史范围:</span>
+                                <el-radio-group v-model="quickTimeRange" @change="handleQuickTimeChange" size="small">
+                                    <el-radio-button :label="7">7天</el-radio-button>
+                                    <el-radio-button :label="30">30天</el-radio-button>
+                                    <el-radio-button :label="60">60天</el-radio-button>
+                                    <el-radio-button :label="90">90天</el-radio-button>
+                                    <el-radio-button :label="365">1年</el-radio-button>
+                                </el-radio-group>
+                            </div>
+                        </div>
+
+                        <div id="trendChart" v-loading="chartLoading"></div>
+                    </div>
+
+                    <!-- 2. 底部深度分析区域 -->
+                    <div class="bottom-section">
+                        <!-- 左下：量化体检 -->
+                        <div class="chart-card analysis-left">
+                            <h3 style="margin:0 0 15px 0; font-size: 16px; border-left: 4px solid #409eff; padding-left: 10px;">🛡️ 量化体检报告 (基于历史数据)</h3>
+                            
+                            <div class="kpi-grid">
+                                <div class="kpi-item">
+                                    <div class="kpi-title">近 {{ quickTimeRange }} 天最大回撤</div>
+                                    <div class="kpi-value text-red">{{ currentMetrics.drawdown }}%</div>
+                                    <div class="kpi-desc">最高价: {{ currentMetrics.highPrice }}</div>
+                                </div>
+                                <div class="kpi-item">
+                                    <div class="kpi-title">均线趋势</div>
+                                     <div class="kpi-value" :class="currentMetrics.isUpTrend ? 'text-red' : 'text-green'">
+                                        {{ currentMetrics.isUpTrend ? '多头' : '空头' }}
+                                    </div>
+                                    <div class="kpi-desc">MA20 vs MA60</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 15px;">
+                                <div class="kpi-title">均线状态矩阵 (MA Status)</div>
+                                <div class="ma-matrix">
+                                    <div class="ma-box" :class="currentMetrics.ma5 ? 'ma-up' : 'ma-down'">MA5</div>
+                                    <div class="ma-box" :class="currentMetrics.ma10 ? 'ma-up' : 'ma-down'">MA10</div>
+                                    <div class="ma-box" :class="currentMetrics.ma20 ? 'ma-up' : 'ma-down'">MA20</div>
+                                    <div class="ma-box" :class="currentMetrics.ma60 ? 'ma-up' : 'ma-down'">MA60</div>
+                                </div>
+                                <div style="text-align: center; margin-top: 8px; font-size: 12px; color: #999;">
+                                    {{ currentMetrics.trendSummary }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 右下：历史记录列表 -->
+                         <div class="chart-card analysis-right">
+                             <h3 style="margin:0 0 10px 0; font-size: 16px;">📅 历史数据概览</h3>
+                             <el-table :data="historyList" style="width: 100%" height="250" size="small" stripe>
+                                 <el-table-column prop="targetDate" label="日期" width="100">
+                                     <template #default="scope">{{ formatDateSimple(scope.row.targetDate) }}</template>
+                                 </el-table-column>
+                                 <el-table-column prop="close" label="收盘" width="70"></el-table-column>
+                                 <el-table-column prop="score" label="Score" width="70"></el-table-column>
+                                 <el-table-column prop="ranking" label="排名" width="60"></el-table-column>
+                                 <el-table-column prop="rankingChange" label="变动" align="right">
+                                    <template #default="scope">
+                                        <span :class="scope.row.rankingChange > 0 ? 'rank-up' : (scope.row.rankingChange < 0 ? 'rank-down' : '')">
+                                            {{ scope.row.rankingChange }}
+                                        </span>
+                                    </template>
+                                 </el-table-column>
+                             </el-table>
+                        </div>
+                    </div>
+                </template>
+
+                <div v-else class="chart-card" style="height: 100%; justify-content: center; align-items: center; color: #999;">
+                    <el-empty description="👈 请在左侧列表中点击任一 ETF，查看多维深度分析"></el-empty>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+
+        const app = createApp({
+            setup() {
+                const loading = ref(false);
+                const chartLoading = ref(false);
+                const etfList = ref([]);
+                const searchText = ref('');
+                const minAmount = ref(0);
+                const exchangeFilter = ref('');
+                const currentEtf = ref(null);
+                const targetDate = ref(''); // 当前选中的日期
+                const dataStatus = ref('初始化中...');
+                
+                // 状态变量
+                const chartMetric = ref('score'); 
+                const quickTimeRange = ref(90); 
+                const historyList = ref([]); // 当前选中 ETF 的历史数据
+
+                // 量化指标数据
+                const currentMetrics = ref({
+                    drawdown: 0,
+                    highPrice: 0,
+                    isUpTrend: false,
+                    ma5: false, ma10: false, ma20: false, ma60: false,
+                    trendSummary: '-'
+                });
+
+                let myChart = null;
+
+                // 格式化日期 YYYY-MM-DD
+                const formatDate = (dateStr) => {
+                    if (!dateStr) return '';
+                    const d = new Date(dateStr);
+                    return d.toISOString().split('T')[0];
+                };
+
+                const formatDateSimple = (dateStr) => {
+                    if (!dateStr) return '';
+                    const date = new Date(dateStr);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+
+                // 获取最新的数据日期
+                const fetchLatestData = async () => {
+                    loading.value = true;
+                    dataStatus.value = '加载最新数据...';
+                    try {
+                        // 首先尝试直接获取 /latest
+                        const response = await axios.get('/api/stock-analysis/latest');
+                        if (response.data && response.data.length > 0) {
+                            etfList.value = response.data;
+                            // 从第一条数据获取日期
+                            if (etfList.value[0].targetDate) {
+                                targetDate.value = formatDateSimple(etfList.value[0].targetDate);
+                            }
+                            dataStatus.value = '在线';
+                        } else {
+                            dataStatus.value = '无数据';
+                            etfList.value = [];
+                        }
+                    } catch (error) {
+                        console.error('Fetch latest failed', error);
+                        dataStatus.value = '连接失败';
+                        document.getElementById('error-msg').innerText = '连接服务器失败: ' + error.message;
+                        document.getElementById('error-msg').style.display = 'block';
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 根据日期获取数据
+                const fetchData = async () => {
+                    if (!targetDate.value) return;
+                    loading.value = true;
+                    try {
+                        const response = await axios.get('/api/stock-analysis/search', {
+                            params: { targetDate: targetDate.value }
+                        });
+                        etfList.value = response.data;
+                    } catch (error) {
+                        console.error('Fetch data failed', error);
+                         this.$message.error('获取数据失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 获取单个 ETF 的历史数据
+                const fetchHistory = async (exchangeId, instrumentId) => {
+                    chartLoading.value = true;
+                    try {
+                        const response = await axios.get('/api/stock-analysis/search', {
+                            params: { 
+                                exchangeId, 
+                                instrumentId 
+                            }
+                        });
+                        // 按日期排序
+                        const data = response.data.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
+                        historyList.value = data.reverse(); // 列表显示倒序
+                        
+                        // 计算指标并绘图（使用正序数据）
+                        updateChartAndMetrics(data);
+                    } catch (error) {
+                        console.error('Fetch history failed', error);
+                    } finally {
+                        chartLoading.value = false;
+                    }
+                };
+
+                const filteredList = computed(() => {
+                    return etfList.value.filter(item => {
+                        const matchText = !searchText.value || 
+                            item.instrumentId.includes(searchText.value) || 
+                            item.instrumentName.includes(searchText.value);
+                        const matchAmount = (item.amount || 0) >= minAmount.value * 10000;
+                        const matchEx = !exchangeFilter.value || item.exchangeId === exchangeFilter.value;
+                        return matchText && matchAmount && matchEx;
+                    });
+                });
+
+                // 计算 MA
+                const calculateMA = (data, dayCount) => {
+                    const result = [];
+                    for (let i = 0; i < data.length; i++) {
+                        if (i < dayCount - 1) {
+                            result.push(null);
+                            continue;
+                        }
+                        let sum = 0;
+                        for (let j = 0; j < dayCount; j++) {
+                            sum += data[i - j].close;
+                        }
+                        result.push(sum / dayCount);
+                    }
+                    return result;
+                };
+
+                const updateChartAndMetrics = (fullHistory) => {
+                    // 1. 过滤时间范围
+                    let endDate = new Date();
+                    if (targetDate.value) {
+                         // 如果有选中的日期，使用选中日期作为结束日期
+                        endDate = new Date(targetDate.value);
+                    }
+                    
+                    const startDate = new Date(endDate);
+                    startDate.setDate(startDate.getDate() - quickTimeRange.value);
+
+                    // 筛选 [startDate, endDate] 范围内的数据
+                    // 注意：fullHistory 中的 targetDate 可能是 UTC 字符串，比较时需转 Date
+                    const data = fullHistory.filter(item => {
+                        const d = new Date(item.targetDate);
+                        // 只比较日期部分，忽略时分秒差异 (简单处理: 转时间戳比较)
+                        return d.getTime() >= startDate.getTime() && d.getTime() <= endDate.getTime() + 86400000; // +1天以包含当天
+                    });
+                    
+                    if (data.length === 0) return;
+
+                    const dates = data.map(item => formatDateSimple(item.targetDate));
+                    const prices = data.map(item => item.close);
+                    
+                    // 2. 计算指标
+                    const maxPrice = Math.max(...prices);
+                    const currentPrice = prices[prices.length - 1];
+                    const drawdown = ((currentPrice - maxPrice) / maxPrice * 100).toFixed(2);
+                    
+                    // 简单 MA 计算 (基于完整历史以保证准确性，然后截取)
+                    // ... (rest of the function)
+                    const closes = fullHistory.map(d => d.close);
+                    const ma5Full = calculateMA(fullHistory, 5);
+                    const ma10Full = calculateMA(fullHistory, 10);
+                    const ma20Full = calculateMA(fullHistory, 20);
+                    const ma60Full = calculateMA(fullHistory, 60);
+
+                    // 获取最后一个点的状态
+                    const lastIdx = fullHistory.length - 1;
+                    const lastClose = closes[lastIdx];
+                    
+                    currentMetrics.value = {
+                        drawdown: drawdown,
+                        highPrice: maxPrice.toFixed(3),
+                        isUpTrend: (ma20Full[lastIdx] > ma60Full[lastIdx]), // 简单定义
+                        ma5: lastClose > ma5Full[lastIdx],
+                        ma10: lastClose > ma10Full[lastIdx],
+                        ma20: lastClose > ma20Full[lastIdx],
+                        ma60: lastClose > ma60Full[lastIdx],
+                        trendSummary: (lastClose > ma20Full[lastIdx] && ma20Full[lastIdx] > ma60Full[lastIdx]) ? '多头排列，趋势向上' : '趋势震荡或回调中'
+                    };
+
+                    // 3. 绘图数据准备
+                    const metricMap = {
+                        'score': { name: '动量得分', data: data.map(i => i.score), color: '#e6a23c', inverse: false, type: 'line', area: true },
+                        'ranking': { name: '全市场排名', data: data.map(i => i.ranking), color: '#f56c6c', inverse: true, type: 'line', area: false }, 
+                        'amount': { name: '成交金额', data: data.map(i => i.amount), color: '#409eff', inverse: false, type: 'bar', area: false }
+                    };
+                    const selected = metricMap[chartMetric.value];
+
+                    const option = {
+                        title: { text: `${dates[0]} 至 ${dates[dates.length-1]} 趋势`, left: 'center', textStyle: { fontSize: 14, color: '#999' } },
+                        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                        grid: { right: '15%', left: '8%', bottom: '10%', top: '15%' },
+                        legend: { data: ['收盘价', selected.name], top: 25 },
+                        xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#ccc' } } },
+                        yAxis: [
+                            { type: 'value', name: '收盘价', position: 'left', scale: true, splitLine: { show: true, lineStyle: { type: 'dashed' } } },
+                            { type: 'value', name: selected.name, position: 'right', scale: true, inverse: selected.inverse, axisLine: { show: true, lineStyle: { color: selected.color } }, axisLabel: { color: selected.color }, splitLine: { show: false } }
+                        ],
+                        series: [
+                            { name: '收盘价', type: 'line', data: prices, yAxisIndex: 0, showSymbol: false, itemStyle: { color: '#303133' }, lineStyle: { width: 3 } },
+                            { name: selected.name, type: selected.type, data: selected.data, yAxisIndex: 1, showSymbol: false, itemStyle: { color: selected.color }, areaStyle: selected.area ? { opacity: 0.2 } : null }
+                        ]
+                    };
+                    
+                    if (myChart) {
+                        myChart.setOption(option, true);
+                    }
+                };
+
+                const updateChart = () => {
+                   // 触发重新绘图（利用已有数据）
+                   // 这里需要缓存 fetchHistory 的数据，暂略，简单起见重新 fetch 或 依赖 historyList
+                   // 为简单起见，从 historyList (倒序) 恢复正序并重绘
+                   if (historyList.value.length > 0) {
+                       const sorted = [...historyList.value].reverse();
+                       updateChartAndMetrics(sorted);
+                   }
+                };
+
+                const handleQuickTimeChange = () => {
+                    updateChart();
+                };
+
+                const handleRowClick = (row) => {
+                    currentEtf.value = row;
+                    fetchHistory(row.exchangeId, row.instrumentId);
+
+                    nextTick(() => {
+                        if (!myChart) {
+                            myChart = echarts.init(document.getElementById('trendChart'));
+                            window.addEventListener('resize', () => myChart.resize());
+                        }
+                    });
+                };
+
+                const disabledDate = (time) => {
+                    return time.getTime() > Date.now();
+                }
+
+                onMounted(() => {
+                    fetchLatestData();
+                });
+
+                return {
+                    loading, chartLoading, etfList, filteredList, searchText, minAmount, exchangeFilter, currentEtf,
+                    chartMetric, quickTimeRange, targetDate, dataStatus,
+                    currentMetrics, historyList,
+                    handleRowClick, updateChart, handleQuickTimeChange, fetchData, disabledDate, formatDateSimple
+                };
+            }
+        });
+
+        app.use(ElementPlus, { locale: ElementPlusLocaleZhCn }); 
+        app.mount('#app');
+    </script>
+</body>
+</html>
+

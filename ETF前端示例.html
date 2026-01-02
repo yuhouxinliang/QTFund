@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>量化策略监控驾驶舱 - 动量策略 v3.0</title>
+    
+    <!-- 使用 unpkg 源 -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/echarts/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/locale/zh-cn.min.js"></script>
+
+    <style>
+        html, body { margin: 0; padding: 0; height: 100%; font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif; background-color: #f5f7fa; }
+        #app { height: 100%; display: flex; flex-direction: column; }
+        
+        /* 顶部导航 */
+        .header { background-color: #2c3e50; color: white; padding: 0 20px; height: 60px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-shrink: 0; }
+        .header h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; }
+        .header .meta-info { font-size: 12px; color: #bdc3c7; }
+
+        /* 主布局 */
+        .main-container { flex: 1; display: flex; overflow: hidden; }
+        
+        /* 左侧列表区 */
+        .left-panel { width: 500px; background: white; border-right: 1px solid #e6e6e6; display: flex; flex-direction: column; z-index: 10; flex-shrink: 0; }
+        .filter-bar { padding: 15px; border-bottom: 1px solid #ebeef5; background: #fff; }
+        .data-table-container { flex: 1; overflow: hidden; position: relative; } 
+        
+        /* 右侧图表区 */
+        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; background-color: #f0f2f5; overflow-y: auto; overflow-x: hidden; }
+        
+        /* 卡片通用样式 */
+        .chart-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; flex-direction: column; }
+        
+        /* 上半部分：趋势图 (固定高度) */
+        .top-section { height: 550px; flex-shrink: 0; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #ebeef5; padding-bottom: 15px; }
+        .etf-title { font-size: 24px; font-weight: bold; color: #303133; }
+        .etf-subtitle { color: #909399; font-size: 14px; margin-left: 10px; }
+        .stat-tags { display: flex; gap: 15px; margin-top: 10px; }
+        
+        .chart-controls { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; margin-bottom: 10px; background: #f9fafc; padding: 10px 20px; border-radius: 4px; }
+        .control-group { display: flex; align-items: center; gap: 10px; }
+        .control-label { font-weight: bold; color: #606266; font-size: 14px; }
+
+        #trendChart { flex: 1; width: 100%; min-height: 0; } /* min-height 0 for flex child */
+
+        /* 下半部分：深度分析区 */
+        .bottom-section { display: flex; gap: 20px; height: 350px; flex-shrink: 0; }
+        
+        /* 左栏：量化体检 */
+        .analysis-left { flex: 1; display: flex; flex-direction: column; }
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; }
+        .kpi-item { background: #f8f9fa; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .kpi-title { font-size: 13px; color: #909399; margin-bottom: 8px; }
+        .kpi-value { font-size: 24px; font-weight: bold; color: #303133; }
+        .kpi-desc { font-size: 12px; color: #67c23a; margin-top: 5px; }
+
+        /* 均线矩阵 */
+        .ma-matrix { display: flex; gap: 10px; width: 100%; justify-content: space-around; margin-top: 10px; }
+        .ma-box { flex: 1; padding: 8px 0; border-radius: 4px; text-align: center; color: white; font-size: 12px; font-weight: bold; opacity: 0.9; }
+        .ma-up { background-color: #67c23a; } /* 站上均线 */
+        .ma-down { background-color: #f56c6c; } /* 跌破均线 */
+
+        /* 右栏：关联与信号 */
+        .analysis-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* 颜色辅助类 */
+        .text-red { color: #f56c6c; font-weight: bold; }
+        .text-green { color: #67c23a; font-weight: bold; }
+        .rank-up { color: #f56c6c; font-weight: bold; } 
+        .rank-down { color: #67c23a; font-weight: bold; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #dcdfe6; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: #f5f7fa; }
+
+        #error-msg { position: fixed; top: 0; left: 0; width: 100%; background: #f56c6c; color: white; padding: 10px; text-align: center; z-index: 9999; display: none; }
+    </style>
+</head>
+<body>
+    <div id="error-msg"></div>
+
+    <div id="app">
+        <!-- 顶部 -->
+        <div class="header">
+            <h1>
+                <span>📈</span>
+                全市场 ETF 动量监控看板
+            </h1>
+            <div class="meta-info">数据状态: 模拟演示模式 (Mock Data)</div>
+        </div>
+
+        <div class="main-container">
+            <!-- 左侧：ETF 列表 -->
+            <div class="left-panel">
+                <div class="filter-bar">
+                    <el-input v-model="searchText" placeholder="搜索代码/名称/板块" style="margin-bottom: 10px;" clearable>
+                        <template #prefix>🔍</template>
+                    </el-input>
+                    <div style="display: flex; gap: 10px;">
+                        <el-input-number v-model="minAmount" :min="0" :step="1000" placeholder="最小成交额(万)" style="width: 100%;" :controls="false">
+                            <template #prefix>¥</template>
+                            <template #suffix>万</template>
+                        </el-input-number>
+                        <el-select v-model="exchangeFilter" placeholder="交易所" style="width: 100px;">
+                            <el-option label="全部" value=""></el-option>
+                            <el-option label="SH" value="SH"></el-option>
+                            <el-option label="SZ" value="SZ"></el-option>
+                        </el-select>
+                    </div>
+                </div>
+
+                <div class="data-table-container">
+                    <el-table 
+                        :data="filteredList" 
+                        style="width: 100%; height: 100%;" 
+                        highlight-current-row
+                        @row-click="handleRowClick"
+                        :default-sort="{prop: 'score', order: 'descending'}"
+                        v-loading="loading"
+                        stripe
+                        border
+                    >
+                        <el-table-column prop="InstrumentID" label="代码" width="80" fixed sortable></el-table-column>
+                        <el-table-column prop="InstrumentName" label="名称" min-width="120" show-overflow-tooltip fixed>
+                            <template #default="scope">
+                                <div style="font-weight: 600; font-size: 14px;">{{ scope.row.InstrumentName }}</div>
+                                <div style="font-size: 12px; color: #909399;">{{ scope.row.ProductName }}</div>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="score" label="Score" width="90" sortable align="right">
+                            <template #default="scope">
+                                <span style="font-weight: bold; font-size: 15px; color: #303133;">{{ scope.row.score.toFixed(1) }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="ranking" label="排名" width="85" sortable align="center">
+                            <template #default="scope">
+                                <el-tag size="small" :type="scope.row.ranking <= 10 ? 'danger' : (scope.row.ranking <= 50 ? 'warning' : 'info')" effect="dark" style="font-weight: bold;">
+                                    #{{ scope.row.ranking }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="ranking_change" label="变化" width="80" sortable align="right">
+                            <template #default="scope">
+                                <span v-if="scope.row.ranking_change > 0" class="rank-up">
+                                    ⬆ {{ scope.row.ranking_change }}
+                                </span>
+                                <span v-else-if="scope.row.ranking_change < 0" class="rank-down">
+                                    ⬇ {{ Math.abs(scope.row.ranking_change) }}
+                                </span>
+                                <span v-else style="color: #dcdfe6;">-</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="amount" label="成交(亿)" width="95" sortable align="right">
+                            <template #default="scope">
+                                {{ (scope.row.amount / 100000000).toFixed(2) }}
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+                <div style="padding: 10px; text-align: center; border-top: 1px solid #eee; color: #666; font-size: 12px; background: #fff;">
+                    共 {{ filteredList.length }} / {{ etfList.length }} 只标的
+                </div>
+            </div>
+
+            <!-- 右侧：详情与图表 -->
+            <div class="right-panel">
+                <template v-if="currentEtf">
+                    
+                    <!-- 1. 顶部趋势图区域 -->
+                    <div class="chart-card top-section">
+                        <div class="card-header">
+                            <div>
+                                <span class="etf-title">{{ currentEtf.InstrumentName }}</span>
+                                <span class="etf-subtitle">{{ currentEtf.InstrumentID }}.{{ currentEtf.ExchangeID }}</span>
+                                <div class="stat-tags">
+                                    <el-tag effect="dark" type="danger" size="large">当前排名: #{{ currentEtf.ranking }}</el-tag>
+                                    <el-tag type="warning" effect="dark" size="large">Score: {{ currentEtf.score.toFixed(2) }}</el-tag>
+                                    <el-tag type="info" effect="plain">成交额: {{ (currentEtf.amount / 10000).toFixed(0) }}万</el-tag>
+                                </div>
+                            </div>
+                            <el-button type="primary" plain @click="downloadCsv">
+                                📥 导出CSV
+                            </el-button>
+                        </div>
+
+                        <!-- 交互控件 -->
+                        <div class="chart-controls">
+                            <div class="control-group">
+                                <span class="control-label">指标:</span>
+                                <el-radio-group v-model="chartMetric" @change="updateChart" size="small">
+                                    <el-radio-button label="score">动量得分</el-radio-button>
+                                    <el-radio-button label="ranking">全市场排名</el-radio-button>
+                                    <el-radio-button label="amount">成交金额</el-radio-button>
+                                </el-radio-group>
+                            </div>
+                            
+                            <div class="control-group">
+                                <span class="control-label">时间:</span>
+                                <el-radio-group v-model="quickTimeRange" @change="handleQuickTimeChange" size="small">
+                                    <el-radio-button :label="30">30天</el-radio-button>
+                                    <el-radio-button :label="60">60天</el-radio-button>
+                                    <el-radio-button :label="90">90天</el-radio-button>
+                                </el-radio-group>
+                                <el-date-picker
+                                    v-model="datePickerRange"
+                                    type="daterange"
+                                    range-separator="-"
+                                    start-placeholder="开始"
+                                    end-placeholder="结束"
+                                    size="small"
+                                    style="width: 220px;"
+                                    @change="handleDatePickerChange"
+                                    format="YYYY-MM-DD"
+                                    value-format="YYYY-MM-DD"
+                                />
+                            </div>
+                        </div>
+
+                        <div id="trendChart"></div>
+                    </div>
+
+                    <!-- 2. 底部深度分析区域 -->
+                    <div class="bottom-section">
+                        <!-- 左下：量化体检 -->
+                        <div class="chart-card analysis-left">
+                            <h3 style="margin:0 0 15px 0; font-size: 16px; border-left: 4px solid #409eff; padding-left: 10px;">🛡️ 量化体检报告</h3>
+                            
+                            <div class="kpi-grid">
+                                <div class="kpi-item">
+                                    <div class="kpi-title">当前最大回撤 (Drawdown)</div>
+                                    <div class="kpi-value text-red">{{ currentMetrics.drawdown }}%</div>
+                                    <div class="kpi-desc">距离前高 {{ currentMetrics.highPrice }}</div>
+                                </div>
+                                <div class="kpi-item">
+                                    <div class="kpi-title">相对强度 (RS vs 300)</div>
+                                    <div class="kpi-value" :class="currentMetrics.rs > 0 ? 'text-red' : 'text-green'">
+                                        {{ currentMetrics.rs > 0 ? '+' : '' }}{{ currentMetrics.rs }}%
+                                    </div>
+                                    <div class="kpi-desc">{{ currentMetrics.rs > 0 ? '强于大盘' : '弱于大盘' }}</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 15px;">
+                                <div class="kpi-title">均线状态矩阵 (MA Status)</div>
+                                <div class="ma-matrix">
+                                    <div class="ma-box" :class="currentMetrics.ma5 ? 'ma-up' : 'ma-down'">MA5</div>
+                                    <div class="ma-box" :class="currentMetrics.ma10 ? 'ma-up' : 'ma-down'">MA10</div>
+                                    <div class="ma-box" :class="currentMetrics.ma20 ? 'ma-up' : 'ma-down'">MA20</div>
+                                    <div class="ma-box" :class="currentMetrics.ma60 ? 'ma-up' : 'ma-down'">MA60</div>
+                                </div>
+                                <div style="text-align: center; margin-top: 8px; font-size: 12px; color: #999;">
+                                    {{ currentMetrics.trendSummary }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 右下：关联与信号 -->
+                        <div class="chart-card analysis-right">
+                            <el-tabs v-model="activeTab" style="height: 100%; display: flex; flex-direction: column;">
+                                
+                                <el-tab-pane label="🔥 同板块比价" name="peers">
+                                    <el-table :data="peerList" style="width: 100%" height="250" size="small">
+                                        <el-table-column prop="name" label="名称" width="120"></el-table-column>
+                                        <el-table-column prop="score" label="Score" width="80" align="right">
+                                            <template #default="scope">
+                                                <span style="font-weight: bold;">{{ scope.row.score }}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column prop="ranking" label="排名" width="80" align="center">
+                                            <template #default="scope">
+                                                <el-tag size="small" :type="scope.row.ranking < 20 ? 'danger' : 'info'">#{{ scope.row.ranking }}</el-tag>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="操作" align="center">
+                                            <template #default="scope">
+                                                <el-button link type="primary" size="small">查看</el-button>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </el-tab-pane>
+
+                                <el-tab-pane label="📡 策略信号记录" name="signals">
+                                    <el-timeline style="padding-left: 5px; margin-top: 10px;">
+                                        <el-timeline-item
+                                            v-for="(activity, index) in signalList"
+                                            :key="index"
+                                            :type="activity.type"
+                                            :color="activity.color"
+                                            :timestamp="activity.timestamp"
+                                            placement="top"
+                                        >
+                                            {{ activity.content }}
+                                        </el-timeline-item>
+                                    </el-timeline>
+                                </el-tab-pane>
+
+                            </el-tabs>
+                        </div>
+                    </div>
+                </template>
+
+                <div v-else class="chart-card" style="height: 100%; justify-content: center; align-items: center; color: #999;">
+                    <el-empty description="👈 请在左侧列表中点击任一 ETF，查看多维深度分析"></el-empty>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            const errorDiv = document.getElementById('error-msg');
+            errorDiv.style.display = 'block';
+            errorDiv.innerText = `程序错误: ${msg} (请检查网络)`;
+            return false;
+        };
+
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+        const app = createApp({
+            setup() {
+                const loading = ref(true);
+                const etfList = ref([]);
+                const searchText = ref('');
+                const minAmount = ref(0);
+                const exchangeFilter = ref('');
+                const currentEtf = ref(null);
+                
+                // 状态变量
+                const chartMetric = ref('score'); 
+                const quickTimeRange = ref(90); 
+                const datePickerRange = ref([]); 
+                const activeTab = ref('peers'); // 底部 Tab 状态
+
+                // 模拟的量化指标数据
+                const currentMetrics = ref({
+                    drawdown: 0,
+                    highPrice: 0,
+                    rs: 0,
+                    ma5: true, ma10: true, ma20: false, ma60: false,
+                    trendSummary: ''
+                });
+                const peerList = ref([]);
+                const signalList = ref([]);
+
+                let myChart = null;
+
+                const initDateRange = () => {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(start.getDate() - 90);
+                    const formatDate = (d) => d.toISOString().slice(0, 10);
+                    datePickerRange.value = [formatDate(start), formatDate(end)];
+                };
+
+                const handleQuickTimeChange = (days) => {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(start.getDate() - days);
+                    const formatDate = (d) => d.toISOString().slice(0, 10);
+                    datePickerRange.value = [formatDate(start), formatDate(end)];
+                    updateChart();
+                };
+
+                const handleDatePickerChange = (val) => {
+                    if (val) {
+                        quickTimeRange.value = 0; 
+                        updateChart();
+                    }
+                };
+
+                const generateMockData = () => {
+                    const data = [];
+                    const products = ['沪深300', '中证500', '半导体', '证券', '医药', '白酒', '纳指科技', '恒生互联', '红利低波', '游戏动漫', '黄金', '新能源'];
+                    const exchanges = ['SH', 'SZ'];
+                    
+                    for (let i = 0; i < 1000; i++) {
+                        const product = products[Math.floor(Math.random() * products.length)];
+                        const score = (Math.random() * 80) - 20; 
+                        data.push({
+                            ExchangeID: exchanges[Math.floor(Math.random() * 2)],
+                            InstrumentID: (510000 + i).toString(),
+                            InstrumentName: `${product}ETF`,
+                            ProductName: product,
+                            close: 0.5 + Math.random() * 4.5,
+                            amount: 5000000 + Math.random() * 1000000000, 
+                            score: score,
+                            ranking: 0, 
+                            score_change: (Math.random() * 4) - 2, 
+                            ranking_change: 0 
+                        });
+                    }
+                    data.sort((a, b) => b.score - a.score);
+                    data.forEach((item, index) => {
+                        item.ranking = index + 1;
+                        const yesterdayRank = Math.max(1, Math.min(1000, (index + 1) + Math.floor((Math.random() * 100) - 50))); 
+                        item.ranking_change = yesterdayRank - item.ranking;
+                    });
+                    etfList.value = data;
+                    loading.value = false;
+                };
+
+                const filteredList = computed(() => {
+                    return etfList.value.filter(item => {
+                        const matchText = !searchText.value || 
+                            item.InstrumentID.includes(searchText.value) || 
+                            item.InstrumentName.includes(searchText.value) ||
+                            item.ProductName.includes(searchText.value);
+                        const matchAmount = item.amount >= minAmount.value * 10000;
+                        const matchEx = !exchangeFilter.value || item.ExchangeID === exchangeFilter.value;
+                        return matchText && matchAmount && matchEx;
+                    });
+                });
+
+                const generateHistoryData = (etf, startDateStr, endDateStr) => {
+                    const dates = [];
+                    const prices = [];
+                    const scores = [];
+                    const ranks = [];
+                    const amounts = [];
+                    
+                    let currDate = new Date(startDateStr);
+                    const endDate = new Date(endDateStr);
+
+                    let basePrice = etf.close * 0.8; 
+                    let baseScore = etf.score - 5;
+                    let baseRank = etf.ranking + 20;
+
+                    while (currDate <= endDate) {
+                        dates.push(currDate.toISOString().slice(0, 10));
+                        basePrice = basePrice * (1 + (Math.random() * 0.06 - 0.03));
+                        baseScore = baseScore + (Math.random() * 6 - 3);
+                        baseRank = Math.max(1, Math.min(1000, baseRank + Math.floor(Math.random() * 40 - 20)));
+                        prices.push(basePrice.toFixed(3));
+                        scores.push(baseScore.toFixed(2));
+                        ranks.push(baseRank);
+                        amounts.push((Math.random() * 200000000 + 10000000).toFixed(0));
+                        currDate.setDate(currDate.getDate() + 1);
+                    }
+                    if (dates.length > 0) {
+                        prices[prices.length - 1] = etf.close.toFixed(3);
+                        scores[scores.length - 1] = etf.score.toFixed(2);
+                        ranks[ranks.length - 1] = etf.ranking;
+                    }
+                    return { dates, prices, scores, ranks, amounts };
+                };
+
+                const updateChart = () => {
+                    if (!myChart || !currentEtf.value || !datePickerRange.value) return;
+                    const [start, end] = datePickerRange.value;
+                    const history = generateHistoryData(currentEtf.value, start, end);
+                    
+                    const metricMap = {
+                        'score': { name: '动量得分', data: history.scores, color: '#e6a23c', inverse: false, type: 'line', area: true },
+                        'ranking': { name: '全市场排名', data: history.ranks, color: '#f56c6c', inverse: true, type: 'line', area: false }, 
+                        'amount': { name: '成交金额', data: history.amounts, color: '#409eff', inverse: false, type: 'bar', area: false }
+                    };
+                    const selected = metricMap[chartMetric.value];
+
+                    const option = {
+                        title: { text: `${start} 至 ${end} 趋势`, left: 'center', textStyle: { fontSize: 14, color: '#999' } },
+                        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                        grid: { right: '15%', left: '8%', bottom: '10%', top: '15%' },
+                        legend: { data: ['收盘价', selected.name], top: 25 },
+                        xAxis: { type: 'category', data: history.dates, axisLine: { lineStyle: { color: '#ccc' } } },
+                        yAxis: [
+                            { type: 'value', name: '收盘价', position: 'left', scale: true, splitLine: { show: true, lineStyle: { type: 'dashed' } } },
+                            { type: 'value', name: selected.name, position: 'right', scale: true, inverse: selected.inverse, axisLine: { show: true, lineStyle: { color: selected.color } }, axisLabel: { color: selected.color }, splitLine: { show: false } }
+                        ],
+                        series: [
+                            { name: '收盘价', type: 'line', data: history.prices, yAxisIndex: 0, showSymbol: false, itemStyle: { color: '#303133' }, lineStyle: { width: 3 } },
+                            { name: selected.name, type: selected.type, data: selected.data, yAxisIndex: 1, showSymbol: false, itemStyle: { color: selected.color }, areaStyle: selected.area ? { opacity: 0.2 } : null }
+                        ]
+                    };
+                    myChart.setOption(option, true); 
+                };
+
+                // 生成随机的深度分析数据
+                const updateAnalysisData = (etf) => {
+                    // 1. 量化体检数据
+                    currentMetrics.value = {
+                        drawdown: (Math.random() * -30).toFixed(2), // 模拟 -0% 到 -30%
+                        highPrice: (etf.close * (1 + Math.random() * 0.3)).toFixed(3),
+                        rs: (Math.random() * 20 - 10).toFixed(2), // -10% 到 +10%
+                        ma5: Math.random() > 0.3,
+                        ma10: Math.random() > 0.4,
+                        ma20: Math.random() > 0.5,
+                        ma60: Math.random() > 0.7,
+                        trendSummary: Math.random() > 0.5 ? '多头排列，趋势向上' : '短期回调，支撑位观察'
+                    };
+
+                    // 2. 同板块数据 (Mock)
+                    peerList.value = [
+                        { name: etf.ProductName + 'ETF (龙头)', score: (etf.score + 5).toFixed(1), ranking: Math.max(1, etf.ranking - 5) },
+                        { name: etf.ProductName + 'ETF (补涨)', score: (etf.score - 2).toFixed(1), ranking: etf.ranking + 12 },
+                        { name: etf.ProductName + '龙头', score: (etf.score - 8).toFixed(1), ranking: etf.ranking + 45 },
+                    ];
+
+                    // 3. 信号记录 (Mock)
+                    signalList.value = [
+                        { content: '排名突破前10，触发买入关注', timestamp: '2023-05-20', type: 'primary', color: '#409eff' },
+                        { content: '回撤超过20%，触发抄底信号', timestamp: '2023-04-10', type: 'danger', color: '#f56c6c' },
+                        { content: '均线金叉，趋势确认', timestamp: '2023-03-01', type: 'success', color: '#67c23a' }
+                    ];
+                };
+
+                const handleRowClick = (row) => {
+                    currentEtf.value = row;
+                    // 更新深度分析数据
+                    updateAnalysisData(row);
+
+                    nextTick(() => {
+                        if (!myChart) {
+                            myChart = echarts.init(document.getElementById('trendChart'));
+                            window.addEventListener('resize', () => myChart.resize());
+                        }
+                        updateChart();
+                    });
+                };
+
+                const downloadCsv = () => {
+                    alert('开发中：将对接 Python 后端 API 下载数据');
+                };
+
+                onMounted(() => {
+                    initDateRange(); 
+                    generateMockData();
+                });
+
+                return {
+                    loading, etfList, filteredList, searchText, minAmount, exchangeFilter, currentEtf,
+                    chartMetric, quickTimeRange, datePickerRange, activeTab,
+                    currentMetrics, peerList, signalList,
+                    handleRowClick, updateChart, downloadCsv, handleQuickTimeChange, handleDatePickerChange
+                };
+            }
+        });
+
+        app.use(ElementPlus, { locale: ElementPlusLocaleZhCn }); 
+        app.mount('#app');
+    </script>
+</body>
+</html>
