@@ -1,6 +1,7 @@
 package com.makemoney.qtfund.controller;
 
 import com.makemoney.qtfund.entity.StockAnalysisResult;
+import com.makemoney.qtfund.enums.StockType;
 import com.makemoney.qtfund.service.StockAnalysisResultService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -87,11 +88,16 @@ public class StockAnalysisResultController {
     public ResponseEntity<List<StockAnalysisResult>> search(
             @RequestParam(required = false) String exchangeId,
             @RequestParam(required = false) String instrumentId,
+            @RequestParam(required = false) StockType stockType,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") Date targetDate,
             @RequestParam(required = false) Integer minRanking,
             @RequestParam(required = false) Integer maxRanking,
             @RequestParam(required = false) Double minScore,
             @RequestParam(required = false) Double maxScore) {
+
+        if (stockType != null && targetDate != null) {
+            return ResponseEntity.ok(service.findByStockTypeAndTargetDate(stockType, targetDate));
+        }
 
         if (exchangeId != null && instrumentId != null && targetDate != null) {
             Optional<StockAnalysisResult> result = service.findByExchangeIdAndInstrumentIdAndTargetDate(

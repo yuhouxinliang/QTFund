@@ -100,6 +100,14 @@
             <!-- 左侧：ETF 列表 -->
             <div class="left-panel">
                 <div class="filter-bar">
+                    <!-- 股票类型切换 -->
+                    <div style="margin-bottom: 15px; text-align: center;">
+                        <el-radio-group v-model="stockType" @change="fetchData" size="large">
+                            <el-radio-button label="STOCK">股票/ETF</el-radio-button>
+                            <el-radio-button label="INDEX">宽基指数</el-radio-button>
+                        </el-radio-group>
+                    </div>
+
                     <el-input v-model="searchText" placeholder="搜索代码/名称" style="margin-bottom: 10px;" clearable>
                         <template #prefix>🔍</template>
                     </el-input>
@@ -303,6 +311,7 @@
                 const exchangeFilter = ref('');
                 const currentEtf = ref(null);
                 const targetDate = ref(''); // 当前选中的日期
+                const stockType = ref('STOCK'); // 默认为股票
                 const dataStatus = ref('初始化中...');
                 
                 // 状态变量
@@ -371,7 +380,10 @@
                     loading.value = true;
                     try {
                         const response = await axios.get('/api/stock-analysis/search', {
-                            params: { targetDate: targetDate.value }
+                            params: { 
+                                targetDate: targetDate.value,
+                                stockType: stockType.value 
+                            }
                         });
                         etfList.value = response.data;
                     } catch (error) {
@@ -407,12 +419,17 @@
 
                 const filteredList = computed(() => {
                     return etfList.value.filter(item => {
+                        // 兼容旧数据（没有 stockType 字段的默认为 STOCK）
+                        const itemType = item.stockType || 'STOCK';
+                        const matchType = itemType === stockType.value;
+                        
                         const matchText = !searchText.value || 
                             item.instrumentId.includes(searchText.value) || 
                             item.instrumentName.includes(searchText.value);
                         const matchAmount = (item.amount || 0) >= minAmount.value * 10000;
                         const matchEx = !exchangeFilter.value || item.exchangeId === exchangeFilter.value;
-                        return matchText && matchAmount && matchEx;
+                        
+                        return matchType && matchText && matchAmount && matchEx;
                     });
                 });
 
@@ -550,7 +567,7 @@
 
                 return {
                     loading, chartLoading, etfList, filteredList, searchText, minAmount, exchangeFilter, currentEtf,
-                    chartMetric, quickTimeRange, targetDate, dataStatus,
+                    chartMetric, quickTimeRange, targetDate, dataStatus, stockType,
                     currentMetrics, historyList,
                     handleRowClick, updateChart, handleQuickTimeChange, fetchData, disabledDate, formatDateSimple
                 };

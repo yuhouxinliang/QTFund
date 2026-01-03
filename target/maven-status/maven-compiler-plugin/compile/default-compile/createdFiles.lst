@@ -1,5 +1,6 @@
 com/makemoney/qtfund/entity/User.class
 com/makemoney/qtfund/QtFundApplication.class
+com/makemoney/qtfund/enums/StockType.class
 com/makemoney/qtfund/repository/UserRepository.class
 com/makemoney/qtfund/service/StockAnalysisResultService.class
 com/makemoney/qtfund/entity/StockAnalysisResult.class

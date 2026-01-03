@@ -1,6 +1,7 @@
 package com.makemoney.qtfund.service;
 
 import com.makemoney.qtfund.entity.StockAnalysisResult;
+import com.makemoney.qtfund.enums.StockType;
 import com.makemoney.qtfund.repository.StockAnalysisResultRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,13 @@ public class StockAnalysisResultService {
 
     @Autowired
     private StockAnalysisResultRepository repository;
+
+    /**
+     * 根据类型和日期查询
+     */
+    public List<StockAnalysisResult> findByStockTypeAndTargetDate(StockType stockType, Date targetDate) {
+        return repository.findByStockTypeAndTargetDate(stockType, targetDate);
+    }
 
     /**
      * 创建/保存股票分析结果
@@ -40,6 +48,7 @@ public class StockAnalysisResultService {
             // 如果存在，则更新
             StockAnalysisResult existingResult = existing.get();
             existingResult.setExchangeId(stockAnalysisResult.getExchangeId());
+            existingResult.setStockType(stockAnalysisResult.getStockType());
             existingResult.setInstrumentId(stockAnalysisResult.getInstrumentId());
             existingResult.setInstrumentName(stockAnalysisResult.getInstrumentName());
             existingResult.setClose(stockAnalysisResult.getClose());
@@ -114,6 +123,7 @@ public class StockAnalysisResultService {
         if (existing.isPresent()) {
             StockAnalysisResult existingResult = existing.get();
             existingResult.setExchangeId(stockAnalysisResult.getExchangeId());
+            existingResult.setStockType(stockAnalysisResult.getStockType());
             existingResult.setInstrumentId(stockAnalysisResult.getInstrumentId());
             existingResult.setInstrumentName(stockAnalysisResult.getInstrumentName());
             existingResult.setClose(stockAnalysisResult.getClose());

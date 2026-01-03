@@ -1,6 +1,7 @@
 package com.makemoney.qtfund.repository;
 
 import com.makemoney.qtfund.entity.StockAnalysisResult;
+import com.makemoney.qtfund.enums.StockType;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
@@ -13,6 +14,11 @@ import java.util.Optional;
  */
 @Repository
 public interface StockAnalysisResultRepository extends MongoRepository<StockAnalysisResult, String> {
+
+    /**
+     * 根据类型和日期查询
+     */
+    List<StockAnalysisResult> findByStockTypeAndTargetDate(StockType stockType, Date targetDate);
 
     /**
      * 根据交易所代码和合约代码查询

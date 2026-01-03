@@ -1,5 +1,6 @@
 package com.makemoney.qtfund.entity;
 
+import com.makemoney.qtfund.enums.StockType;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -14,6 +15,9 @@ public class StockAnalysisResult {
 
     @Id
     private String id;
+
+    @Field("stock_type")
+    private StockType stockType = StockType.STOCK; // 默认为股票
 
     @Field("exchange_id")
     private String exchangeId;
@@ -50,6 +54,14 @@ public class StockAnalysisResult {
     }
 
     // Getter和Setter方法
+    public StockType getStockType() {
+        return stockType;
+    }
+
+    public void setStockType(StockType stockType) {
+        this.stockType = stockType;
+    }
+
     public String getId() {
         return id;
     }

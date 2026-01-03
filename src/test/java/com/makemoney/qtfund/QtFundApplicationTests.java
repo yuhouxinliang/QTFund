@@ -1,5 +1,6 @@
 package com.makemoney.qtfund;
 
+import com.makemoney.qtfund.enums.StockType;
 import com.makemoney.qtfund.entity.StockAnalysisResult;
 import com.makemoney.qtfund.service.StockAnalysisResultService;
 import org.junit.jupiter.api.AfterEach;
@@ -12,6 +13,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -332,40 +334,117 @@ class QtFundApplicationTests {
     }
 
     /**
-     * 测试数据写入并保留数据（用于在MongoDB Compass中查看）
-     * 注意：此测试不会清理数据，数据会保留在数据库中
+     * 批量插入模拟数据 (10只股票 + 10只指数 x 100天)
      */
     @Test
-    void testSaveDataForViewing() {
-        // 创建测试数据
-        Calendar cal = Calendar.getInstance();
-        cal.set(2024, Calendar.JANUARY, 20, 0, 0, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        Date testDate = cal.getTime();
+    void insertMockData() {
+        // 清理旧数据
+        service.deleteAll();
 
-        StockAnalysisResult testData = new StockAnalysisResult();
-        testData.setExchangeId("SZ");
-        testData.setInstrumentId("159206");
-        testData.setInstrumentName("卫星ETF");
-        testData.setClose(1.35);
-        testData.setAmount(1500000.0);
-        testData.setScore(90.5);
-        testData.setRanking(7);
-        testData.setScoreChange(3.0);
-        testData.setRankingChange(-3);
-        testData.setTargetDate(testDate);
+        // 10只股票
+        String[][] stocks = {
+            {"SH", "510300", "沪深300ETF", "4.0"},
+            {"SH", "588000", "科创50ETF", "0.9"},
+            {"SZ", "159915", "创业板ETF", "2.1"},
+            {"SH", "512660", "军工ETF", "1.1"},
+            {"SH", "512480", "半导体ETF", "0.8"},
+            {"SZ", "159920", "恒生ETF", "0.7"},
+            {"SH", "512880", "证券ETF", "0.9"},
+            {"SH", "515030", "新能源车ETF", "1.5"},
+            {"SZ", "159605", "中概互联ETF", "0.8"},
+            {"SZ", "159995", "芯片ETF", "1.0"}
+        };
 
-        // 保存数据
-        StockAnalysisResult saved = service.save(testData);
-        assertNotNull(saved);
-        assertNotNull(saved.getId());
-        System.out.println("数据已保存，ID: " + saved.getId());
-        System.out.println("请在MongoDB Compass中查看 qtfund.stock_analysis_result 集合");
+        // 10只指数
+        String[][] indexes = {
+            {"SH", "000001", "上证指数", "3000.0"},
+            {"SZ", "399001", "深证成指", "9500.0"},
+            {"SZ", "399006", "创业板指", "1800.0"},
+            {"SH", "000300", "沪深300", "3500.0"},
+            {"SH", "000688", "科创50", "850.0"},
+            {"SH", "000905", "中证500", "5500.0"},
+            {"SH", "000852", "中证1000", "6000.0"},
+            {"SH", "000016", "上证50", "2400.0"},
+            {"SZ", "399005", "中小板指", "6000.0"},
+            {"HK", "HSI", "恒生指数", "17000.0"}
+        };
 
-        // 验证数据已保存
-        Optional<StockAnalysisResult> found = service.findById(saved.getId());
-        assertTrue(found.isPresent());
-        assertEquals("SZ", found.get().getExchangeId());
-        assertEquals("159206", found.get().getInstrumentId());
+        Random random = new Random();
+        Calendar calendar = Calendar.getInstance();
+        // 清除时分秒，确保日期精确匹配
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        
+        // 从100天前开始
+        calendar.add(Calendar.DAY_OF_YEAR, -100);
+        Date startDate = calendar.getTime();
+
+        // 插入股票数据
+        insertDataBatch(stocks, startDate, StockType.STOCK, random);
+        
+        // 插入指数数据
+        insertDataBatch(indexes, startDate, StockType.INDEX, random);
+        
+        System.out.println("成功插入模拟数据：10只股票 + 10只指数！");
+    }
+
+    private void insertDataBatch(String[][] items, Date startDate, StockType type, Random random) {
+        for (String[] item : items) {
+            String exchangeId = item[0];
+            String instrumentId = item[1];
+            String name = item[2];
+            double basePrice = Double.parseDouble(item[3]);
+            double currentPrice = basePrice;
+            
+            // 初始排名和分数
+            int currentRank = random.nextInt(100) + 1;
+            double currentScore = 50 + random.nextDouble() * 50;
+
+            for (int i = 0; i < 100; i++) {
+                Calendar currentCal = Calendar.getInstance();
+                currentCal.setTime(startDate);
+                currentCal.add(Calendar.DAY_OF_YEAR, i);
+                
+                // 跳过周末
+                int dayOfWeek = currentCal.get(Calendar.DAY_OF_WEEK);
+                if (dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY) {
+                    continue;
+                }
+
+                StockAnalysisResult data = new StockAnalysisResult();
+                data.setStockType(type);
+                data.setExchangeId(exchangeId);
+                data.setInstrumentId(instrumentId);
+                data.setInstrumentName(name);
+                
+                // 模拟价格波动 (-2% 到 +2%)
+                double changePercent = (random.nextDouble() - 0.5) * 0.04;
+                currentPrice = currentPrice * (1 + changePercent);
+                data.setClose(Math.round(currentPrice * 1000.0) / 1000.0);
+                
+                // 模拟成交额
+                double amount = type == StockType.STOCK ? 
+                    (50000000 + random.nextDouble() * 450000000) : // 股票: 5千万-5亿
+                    (1000000000 + random.nextDouble() * 5000000000L); // 指数: 10亿-60亿
+                data.setAmount(amount);
+                
+                // 模拟分数和排名变化
+                double scoreChange = (random.nextDouble() - 0.5) * 5;
+                currentScore = Math.max(0, Math.min(100, currentScore + scoreChange));
+                
+                int rankChange = (int)((random.nextDouble() - 0.5) * 10);
+                currentRank = Math.max(1, Math.min(500, currentRank + rankChange));
+
+                data.setScore(Math.round(currentScore * 10.0) / 10.0);
+                data.setRanking(currentRank);
+                data.setScoreChange(Math.round(scoreChange * 10.0) / 10.0);
+                data.setRankingChange(-rankChange);
+                data.setTargetDate(currentCal.getTime());
+
+                service.save(data);
+            }
+        }
     }
 }

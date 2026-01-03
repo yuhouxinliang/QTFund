@@ -4,6 +4,7 @@
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/controller/StockAnalysisResultController.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/entity/StockAnalysisResult.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/entity/User.java
+/root/code/QTFund/src/main/java/com/makemoney/qtfund/enums/StockType.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/repository/StockAnalysisResultRepository.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/repository/UserRepository.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/service/CustomUserDetailsService.java
