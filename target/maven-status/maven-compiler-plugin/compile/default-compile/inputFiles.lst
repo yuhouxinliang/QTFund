@@ -1,5 +1,6 @@
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/QtFundApplication.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/config/DataInitializer.java
+/root/code/QTFund/src/main/java/com/makemoney/qtfund/config/MongoConfig.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/config/SecurityConfig.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/controller/StockAnalysisResultController.java
 /root/code/QTFund/src/main/java/com/makemoney/qtfund/entity/StockAnalysisResult.java

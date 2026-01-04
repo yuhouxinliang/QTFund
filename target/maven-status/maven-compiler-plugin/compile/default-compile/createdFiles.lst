@@ -8,4 +8,5 @@ com/makemoney/qtfund/config/SecurityConfig.class
 com/makemoney/qtfund/controller/StockAnalysisResultController.class
 com/makemoney/qtfund/config/DataInitializer.class
 com/makemoney/qtfund/repository/StockAnalysisResultRepository.class
+com/makemoney/qtfund/config/MongoConfig.class
 com/makemoney/qtfund/service/CustomUserDetailsService.class
