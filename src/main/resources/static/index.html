@@ -404,9 +404,11 @@
                                 instrumentId 
                             }
                         });
+                        console.log('原始API返回数据(前2条):', response.data.slice(0, 2));
+                        
                         // 按日期排序
                         const data = response.data.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
-                        historyList.value = data.reverse(); // 列表显示倒序
+                        historyList.value = [...data].reverse(); // 列表显示倒序，使用副本不影响原数据
                         
                         // 计算指标并绘图（使用正序数据）
                         updateChartAndMetrics(data);
@@ -451,6 +453,15 @@
                 };
 
                 const updateChartAndMetrics = (fullHistory) => {
+                    // 0. 强制确保数据按日期正序排列 (旧 -> 新)
+                    fullHistory.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
+                    
+                    console.log('绘图数据排序后(首尾):', {
+                        first: fullHistory[0]?.targetDate,
+                        last: fullHistory[fullHistory.length-1]?.targetDate,
+                        total: fullHistory.length
+                    });
+
                     // 1. 过滤时间范围
                     let endDate = new Date();
                     if (targetDate.value) {
