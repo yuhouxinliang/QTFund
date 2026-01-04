@@ -406,7 +406,7 @@
                         });
                         // 按日期排序
                         const data = response.data.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
-                        historyList.value = data.reverse(); // 列表显示倒序
+                        historyList.value = [...data].reverse(); // 列表显示倒序，使用副本不影响原数据
                         
                         // 计算指标并绘图（使用正序数据）
                         updateChartAndMetrics(data);
@@ -451,6 +451,9 @@
                 };
 
                 const updateChartAndMetrics = (fullHistory) => {
+                    // 0. 强制确保数据按日期正序排列 (旧 -> 新)
+                    fullHistory.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
+
                     // 1. 过滤时间范围
                     let endDate = new Date();
                     if (targetDate.value) {
@@ -536,8 +539,8 @@
                    // 这里需要缓存 fetchHistory 的数据，暂略，简单起见重新 fetch 或 依赖 historyList
                    // 为简单起见，从 historyList (倒序) 恢复正序并重绘
                    if (historyList.value.length > 0) {
-                       const sorted = [...historyList.value].reverse();
-                       updateChartAndMetrics(sorted);
+                       // 直接传递，updateChartAndMetrics 内部会强制按日期正序排列
+                       updateChartAndMetrics(historyList.value);
                    }
                 };
 
