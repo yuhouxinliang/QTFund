@@ -15,95 +15,211 @@
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; height: 100%; font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif; background-color: #f5f7fa; }
+        :root {
+            --primary-color: #4f46e5;
+            --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-sub: #6b7280;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --radius-md: 12px;
+        }
+
+        html, body { 
+            margin: 0; padding: 0; height: 100%; 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+        }
         #app { height: 100%; display: flex; flex-direction: column; }
         
-        /* 顶部导航 */
-        .header { background-color: #2c3e50; color: white; padding: 0 20px; height: 60px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-shrink: 0; }
-        .header h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; }
-        .header .meta-info { font-size: 12px; color: #bdc3c7; }
+        /* 顶部导航 - 现代化玻璃拟态/渐变风格 */
+        .header { 
+            background: var(--card-bg);
+            padding: 0 24px; 
+            height: 64px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            box-shadow: var(--shadow-sm); 
+            flex-shrink: 0; 
+            z-index: 50;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        .header h1 { 
+            font-size: 22px; 
+            margin: 0; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        /* Logo 文字渐变 */
+        .brand-text {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header .meta-info { 
+            font-size: 13px; 
+            color: var(--text-sub); 
+            background: #f9fafb;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid #e5e7eb;
+        }
 
         /* 主布局 */
         .main-container { flex: 1; display: flex; overflow: hidden; }
         
         /* 左侧列表区 */
         .left-panel { 
-            background: white; 
-            border-right: 1px solid #e6e6e6; 
+            background: var(--card-bg); 
+            border-right: 1px solid #e5e7eb; 
             display: flex; 
             flex-direction: column; 
             z-index: 10; 
             flex-shrink: 0; 
             min-width: 0;
-            will-change: width; /* 性能优化 */
+            will-change: width;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.02);
         }
         
-        /* 拖拽分割条 */
+        /* 拖拽分割条 - 更加明显且优雅 */
         .resizer {
-            width: 5px;
+            width: 6px;
             cursor: col-resize;
-            background: #f0f2f5;
+            background: #f3f4f6;
             flex-shrink: 0;
-            transition: background 0.2s;
+            transition: all 0.2s;
             z-index: 20;
+            position: relative;
+        }
+        .resizer::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px; height: 20px;
+            background: #d1d5db;
+            border-radius: 2px;
         }
         .resizer:hover, .resizer.active {
-            background: #409eff;
+            background: #dbeafe; /* Light blue */
+        }
+        .resizer:hover::after, .resizer.active::after {
+            background: var(--primary-color);
         }
 
-        .filter-bar { padding: 15px; border-bottom: 1px solid #ebeef5; background: #fff; }
+        .filter-bar { padding: 20px; border-bottom: 1px solid #f3f4f6; background: #fff; }
         .data-table-container { flex: 1; overflow: hidden; position: relative; } 
         
         /* 右侧图表区 */
-        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; background-color: #f0f2f5; overflow-y: auto; overflow-x: hidden; min-width: 0; }
+        .right-panel { 
+            flex: 1; 
+            padding: 24px; 
+            display: flex; 
+            flex-direction: column; 
+            background-color: var(--bg-color); 
+            overflow-y: auto; 
+            overflow-x: hidden; 
+            min-width: 0; 
+            gap: 24px;
+        }
         
-        /* 卡片通用样式 */
-        .chart-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; flex-direction: column; }
+        /* 卡片现代化样式 */
+        .chart-card { 
+            background: var(--card-bg); 
+            border-radius: var(--radius-md); 
+            padding: 24px; 
+            box-shadow: var(--shadow-sm); 
+            border: 1px solid rgba(0,0,0,0.02);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex; 
+            flex-direction: column; 
+        }
+        .chart-card:hover {
+            box-shadow: var(--shadow-md);
+            /* transform: translateY(-2px); 稍微上浮，增加交互感 */
+        }
         
-        /* 上半部分：趋势图 (固定高度) */
-        .top-section { height: 550px; flex-shrink: 0; }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #ebeef5; padding-bottom: 15px; }
-        .etf-title { font-size: 24px; font-weight: bold; color: #303133; }
-        .etf-subtitle { color: #909399; font-size: 14px; margin-left: 10px; }
-        .stat-tags { display: flex; gap: 15px; margin-top: 10px; }
+        /* 上半部分：趋势图 */
+        .top-section { height: 580px; flex-shrink: 0; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid #f3f4f6; padding-bottom: 16px; }
+        .etf-title { font-size: 26px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px; }
+        .etf-subtitle { color: var(--text-sub); font-size: 15px; margin-left: 12px; font-weight: 500; }
+        .stat-tags { display: flex; gap: 12px; margin-top: 12px; }
         
-        .chart-controls { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; margin-bottom: 10px; background: #f9fafc; padding: 10px 20px; border-radius: 4px; }
-        .control-group { display: flex; align-items: center; gap: 10px; }
-        .control-label { font-weight: bold; color: #606266; font-size: 14px; }
+        .chart-controls { 
+            display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 16px; 
+            background: #f8fafc; padding: 12px 20px; border-radius: 8px; border: 1px solid #e2e8f0;
+        }
+        .control-group { display: flex; align-items: center; gap: 12px; }
+        .control-label { font-weight: 600; color: #4b5563; font-size: 14px; }
 
-        #trendChart { flex: 1; width: 100%; min-height: 0; } /* min-height 0 for flex child */
+        #trendChart { flex: 1; width: 100%; min-height: 0; border-radius: 8px; }
 
         /* 下半部分：深度分析区 */
-        .bottom-section { display: flex; gap: 20px; height: 350px; flex-shrink: 0; }
+        .bottom-section { display: flex; gap: 24px; height: 380px; flex-shrink: 0; }
         
         /* 左栏：量化体检 */
         .analysis-left { flex: 1; display: flex; flex-direction: column; }
-        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; }
-        .kpi-item { background: #f8f9fa; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-        .kpi-title { font-size: 13px; color: #909399; margin-bottom: 8px; }
-        .kpi-value { font-size: 24px; font-weight: bold; color: #303133; }
-        .kpi-desc { font-size: 12px; color: #67c23a; margin-top: 5px; }
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; }
+        .kpi-item { 
+            background: #f9fafb; 
+            border-radius: 12px; 
+            padding: 16px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            text-align: center; 
+            transition: background 0.3s;
+        }
+        .kpi-item:hover { background: #eff6ff; }
+        .kpi-title { font-size: 13px; color: #6b7280; margin-bottom: 8px; font-weight: 500; }
+        .kpi-value { font-size: 28px; font-weight: 800; color: #111827; letter-spacing: -1px; }
+        .kpi-desc { font-size: 12px; color: #10b981; margin-top: 6px; font-weight: 600; background: #ecfdf5; padding: 2px 8px; border-radius: 10px; }
 
         /* 均线矩阵 */
-        .ma-matrix { display: flex; gap: 10px; width: 100%; justify-content: space-around; margin-top: 10px; }
-        .ma-box { flex: 1; padding: 8px 0; border-radius: 4px; text-align: center; color: white; font-size: 12px; font-weight: bold; opacity: 0.9; }
-        .ma-up { background-color: #67c23a; } /* 站上均线 */
-        .ma-down { background-color: #f56c6c; } /* 跌破均线 */
+        .ma-matrix { display: flex; gap: 12px; width: 100%; justify-content: space-around; margin-top: 16px; }
+        .ma-box { 
+            flex: 1; padding: 10px 0; border-radius: 8px; text-align: center; 
+            color: white; font-size: 13px; font-weight: 700; opacity: 1; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .ma-up { background: linear-gradient(135deg, #34d399 0%, #10b981 100%); } /* 鲜亮绿 */
+        .ma-down { background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); } /* 鲜亮红 */
 
         /* 右栏：关联与信号 */
         .analysis-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         
         /* 颜色辅助类 */
-        .text-red { color: #f56c6c; font-weight: bold; }
-        .text-green { color: #67c23a; font-weight: bold; }
-        .rank-up { color: #f56c6c; font-weight: bold; } 
-        .rank-down { color: #67c23a; font-weight: bold; }
+        .text-red { color: #ef4444; font-weight: bold; }
+        .text-green { color: #10b981; font-weight: bold; }
+        .rank-up { color: #ef4444; font-weight: bold; } 
+        .rank-down { color: #10b981; font-weight: bold; }
         
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-thumb { background: #dcdfe6; border-radius: 4px; }
-        ::-webkit-scrollbar-track { background: #f5f7fa; }
+        /* 表格优化 */
+        .el-table { --el-table-header-bg-color: #f9fafb; --el-table-row-hover-bg-color: #eff6ff !important; border-radius: 8px; overflow: hidden; }
+        .el-table th.el-table__cell { font-weight: 600; color: #374151; }
+        
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar-track { background: transparent; }
 
-        #error-msg { position: fixed; top: 0; left: 0; width: 100%; background: #f56c6c; color: white; padding: 10px; text-align: center; z-index: 9999; display: none; }
+        #error-msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #fee2e2; color: #b91c1c; padding: 12px 24px; border-radius: 30px; border: 1px solid #fecaca; box-shadow: var(--shadow-lg); z-index: 9999; display: none; font-weight: 500; }
+        
+        /* 链接样式 */
+        .header-link { font-weight: 500; transition: color 0.2s; }
+        .header-link:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -113,17 +229,17 @@
         <!-- 顶部 -->
         <div class="header">
             <h1>
-                <span>📈</span>
-                全市场 ETF 动量监控看板
+                <span style="font-size: 28px;">📈</span>
+                <span class="brand-text">QTFund 动量策略监控</span>
             </h1>
-            <div style="display: flex; align-items: center; gap: 15px; font-size: 14px;">
-                <div class="meta-info">数据源: 实时数据库 | 状态: {{ dataStatus }}</div>
-                <span v-if="currentUser.username" style="color: #fff;">
-                    <el-icon style="vertical-align: middle; margin-right: 4px;"><User /></el-icon>
+            <div style="display: flex; align-items: center; gap: 20px; font-size: 14px; font-weight: 500;">
+                <div class="meta-info">⚡ 实时数据 | {{ dataStatus }}</div>
+                <span v-if="currentUser.username" style="color: var(--text-main); display: flex; align-items: center;">
+                    <el-avatar :size="28" style="margin-right: 8px; background: var(--primary-gradient);">{{ currentUser.username.charAt(0).toUpperCase() }}</el-avatar>
                     {{ currentUser.username }}
                 </span>
-                <el-link v-if="isAdmin" type="primary" :underline="false" href="/user_management.html" style="color: #409eff; font-weight: bold;">用户管理</el-link>
-                <el-link type="info" :underline="false" href="/logout" style="color: #bdc3c7;">退出</el-link>
+                <el-link v-if="isAdmin" type="primary" :underline="false" href="/user_management.html" class="header-link" style="color: var(--primary-color);">用户管理</el-link>
+                <el-link type="info" :underline="false" href="/logout" class="header-link" style="color: #9ca3af;">退出</el-link>
             </div>
         </div>
 
@@ -457,8 +573,8 @@
                     '#000080'  // 深蓝
                 ];
                 
-                // 布局控制：默认列表占 65%
-                const initialLeftWidth = window.innerWidth * 0.65;
+                // 布局控制：默认列表占 55%
+                const initialLeftWidth = window.innerWidth * 0.55;
                 const leftPanelWidth = ref(initialLeftWidth);
                 const isResizing = ref(false);
                 const lastLeftWidth = ref(initialLeftWidth); // 记录上次宽度以便恢复
@@ -538,7 +654,7 @@
                 // 简单循环：默认 -> 仅详情(0) -> 仅列表(全屏) -> 默认
                 const togglePanel = () => {
                     const totalWidth = window.innerWidth;
-                    const defaultWidth = totalWidth * 0.65;
+                    const defaultWidth = totalWidth * 0.55;
                     
                     if (leftPanelWidth.value > 0 && leftPanelWidth.value < totalWidth - 50) {
                         // 当前是默认状态 -> 切换到仅详情 (Left=0)
@@ -874,32 +990,73 @@
 
                     // 3. 绘图数据准备
                     const metricMap = {
-                        'score': { name: '动量得分', data: data.map(i => i.score), color: '#e6a23c', inverse: false, type: 'line', area: true },
-                        'ranking': { name: '全市场排名', data: data.map(i => i.ranking), color: '#f56c6c', inverse: true, type: 'line', area: false }, 
-                        'amount': { name: '成交金额', data: data.map(i => i.amount), color: '#409eff', inverse: false, type: 'bar', area: false }
+                        'score': { name: '动量得分', data: data.map(i => i.score), color: '#f59e0b', inverse: false, type: 'line', area: true },
+                        'ranking': { name: '全市场排名', data: data.map(i => i.ranking), color: '#ef4444', inverse: true, type: 'line', area: false }, 
+                        'amount': { name: '成交金额', data: data.map(i => i.amount), color: '#3b82f6', inverse: false, type: 'bar', area: false }
                     };
                     const selected = metricMap[chartMetric.value];
 
                     const option = {
-                        title: { text: `${dates[0]} 至 ${dates[dates.length-1]} 趋势`, left: 'center', textStyle: { fontSize: 14, color: '#999' } },
-                        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-                        grid: { right: '15%', left: '8%', bottom: '20%', top: '15%' },
+                        title: { text: `${dates[0]} 至 ${dates[dates.length-1]} 趋势分析`, left: 'left', textStyle: { fontSize: 16, color: '#374151', fontWeight: 'bold' } },
+                        tooltip: { 
+                            trigger: 'axis', 
+                            axisPointer: { type: 'line', lineStyle: { type: 'dashed' } },
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            borderColor: '#e5e7eb',
+                            textStyle: { color: '#1f2937' },
+                            extraCssText: 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 8px;'
+                        },
+                        grid: { right: '80', left: '60', bottom: '40', top: '60' },
                         legend: { 
                             data: ['收盘价', selected.name], 
                             bottom: 0,
-                            top: 'auto',
-                            type: 'scroll',
-                            padding: [5, 10],
-                            itemGap: 15
+                            icon: 'circle',
+                            textStyle: { color: '#6b7280' }
                         },
-                        xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#ccc' } } },
+                        xAxis: { 
+                            type: 'category', 
+                            data: dates, 
+                            axisLine: { lineStyle: { color: '#e5e7eb' } },
+                            axisLabel: { color: '#6b7280' },
+                            axisTick: { show: false }
+                        },
                         yAxis: [
-                            { type: 'log', name: '收盘价', position: 'left', scale: true, splitLine: { show: true, lineStyle: { type: 'dashed' } }, logBase: 10 },
-                            { type: 'value', name: selected.name, position: 'right', scale: true, inverse: selected.inverse, axisLine: { show: true, lineStyle: { color: selected.color } }, axisLabel: { color: selected.color }, splitLine: { show: false } }
+                            { 
+                                type: 'log', name: '收盘价', position: 'left', scale: true, 
+                                splitLine: { show: true, lineStyle: { type: 'dashed', color: '#f3f4f6' } }, 
+                                logBase: 10,
+                                axisLine: { show: false },
+                                axisLabel: { color: '#6b7280' },
+                                nameTextStyle: { color: '#9ca3af' }
+                            },
+                            { 
+                                type: 'value', name: selected.name, position: 'right', scale: true, inverse: selected.inverse, 
+                                axisLine: { show: false }, 
+                                axisLabel: { color: selected.color, fontWeight: 'bold' }, 
+                                splitLine: { show: false },
+                                nameTextStyle: { color: selected.color }
+                            }
                         ],
                         series: [
-                            { name: '收盘价', type: 'line', data: prices, yAxisIndex: 0, showSymbol: false, itemStyle: { color: '#303133' }, lineStyle: { width: 3 } },
-                            { name: selected.name, type: selected.type, data: selected.data, yAxisIndex: 1, showSymbol: false, itemStyle: { color: selected.color }, areaStyle: selected.area ? { opacity: 0.2 } : null }
+                            { 
+                                name: '收盘价', type: 'line', data: prices, yAxisIndex: 0, showSymbol: false, 
+                                itemStyle: { color: '#111827' }, 
+                                lineStyle: { width: 3, shadowColor: 'rgba(0,0,0,0.1)', shadowBlur: 10 },
+                                smooth: true
+                            },
+                            { 
+                                name: selected.name, type: selected.type, data: selected.data, yAxisIndex: 1, showSymbol: false, 
+                                itemStyle: { color: selected.color }, 
+                                lineStyle: { width: 2 },
+                                smooth: true,
+                                areaStyle: selected.area ? { 
+                                    opacity: 0.3,
+                                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                        { offset: 0, color: selected.color },
+                                        { offset: 1, color: 'rgba(255, 255, 255, 0)' }
+                                    ])
+                                } : null 
+                            }
                         ]
                     };
 
