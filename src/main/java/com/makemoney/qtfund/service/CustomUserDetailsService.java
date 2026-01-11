@@ -26,9 +26,15 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
+        boolean accountNonExpired = true;
+        if (user.getExpirationDate() != null && user.getExpirationDate().before(new java.util.Date())) {
+            accountNonExpired = false;
+        }
+
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getUsername())
                 .password(user.getPassword())
+                .accountExpired(!accountNonExpired)
                 .authorities(Optional.ofNullable(user.getRoles()).orElse(Collections.emptyList()).stream()
                         .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                         .collect(Collectors.toList()))

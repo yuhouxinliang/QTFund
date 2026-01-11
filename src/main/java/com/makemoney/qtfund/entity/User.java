@@ -3,6 +3,7 @@ package com.makemoney.qtfund.entity;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
 import java.util.List;
 
 @Document(collection = "users")
@@ -13,6 +14,8 @@ public class User {
     private String username;
     private String password;
     private List<String> roles;
+    private Date expirationDate;
+    private List<LoginLog> loginLogs;
 
     public String getId() {
         return id;
@@ -44,6 +47,22 @@ public class User {
 
     public void setRoles(List<String> roles) {
         this.roles = roles;
+    }
+
+    public Date getExpirationDate() {
+        return expirationDate;
+    }
+
+    public void setExpirationDate(Date expirationDate) {
+        this.expirationDate = expirationDate;
+    }
+
+    public List<LoginLog> getLoginLogs() {
+        return loginLogs;
+    }
+
+    public void setLoginLogs(List<LoginLog> loginLogs) {
+        this.loginLogs = loginLogs;
     }
 }
 

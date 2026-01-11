@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - QTFund</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/dayjs/dayjs.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif; background-color: #f5f7fa; }
+        .header { background-color: #2c3e50; color: white; padding: 0 20px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
+        .main-container { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .card { background: white; border-radius: 4px; padding: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1 style="font-size: 20px; margin: 0; cursor: pointer;" @click="goHome">QTFund 用户管理</h1>
+            <div style="font-size: 14px;">
+                <span style="margin-right: 15px;">当前用户: {{ currentUser.username }}</span>
+                <el-link type="primary" :underline="false" href="/logout" style="color: #fff;">退出</el-link>
+            </div>
+        </div>
+
+        <div class="main-container">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">用户列表</h2>
+                    <el-button type="primary" @click="showAddDialog = true">新增用户</el-button>
+                </div>
+                
+                <el-table :data="users" style="width: 100%" stripe>
+                    <el-table-column prop="username" label="用户名" width="150"></el-table-column>
+                    <el-table-column label="角色" width="100">
+                        <template #default="scope">
+                            <el-tag v-for="role in scope.row.roles" :key="role" size="small">{{ role }}</el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="过期时间" width="180">
+                        <template #default="scope">
+                            <span v-if="scope.row.expirationDate" :class="{ 'text-red': isExpired(scope.row.expirationDate) }">
+                                {{ formatDate(scope.row.expirationDate) }}
+                            </span>
+                            <span v-else>永不过期</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="登录记录 (IP / 设备)" min-width="300">
+                        <template #default="scope">
+                            <div v-if="scope.row.loginLogs && scope.row.loginLogs.length">
+                                <div v-for="(log, index) in scope.row.loginLogs.slice(-3)" :key="index" style="font-size: 12px; color: #666; margin-bottom: 4px;">
+                                    {{ formatDate(log.loginTime) }} - {{ log.ip }} 
+                                    <br/><span style="color: #999;">{{ log.deviceInfo }}</span>
+                                </div>
+                                <div v-if="scope.row.loginLogs.length > 3" style="font-size: 12px; color: #999;">... 共 {{ scope.row.loginLogs.length }} 条</div>
+                            </div>
+                            <span v-else style="color: #ccc;">无记录</span>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </div>
+        </div>
+
+        <!-- 新增用户弹窗 -->
+        <el-dialog v-model="showAddDialog" title="新增用户" width="400px">
+            <el-form :model="newUser" label-width="100px">
+                <el-form-item label="用户名">
+                    <el-input v-model="newUser.username"></el-input>
+                </el-form-item>
+                <el-form-item label="密码">
+                    <el-input v-model="newUser.password" show-password></el-input>
+                </el-form-item>
+                <el-form-item label="有效期(天)">
+                    <el-input-number v-model="newUser.validDays" :min="1" :max="3650"></el-input-number>
+                    <div style="font-size: 12px; color: #999;">不填默认永不过期(需代码支持，目前逻辑是必填)</div>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <span class="dialog-footer">
+                    <el-button @click="showAddDialog = false">取消</el-button>
+                    <el-button type="primary" @click="addUser">确定</el-button>
+                </span>
+            </template>
+        </el-dialog>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const currentUser = ref({ username: '' });
+                const users = ref([]);
+                const showAddDialog = ref(false);
+                const newUser = ref({
+                    username: '',
+                    password: '',
+                    validDays: 30
+                });
+
+                const fetchCurrentUser = async () => {
+                    try {
+                        const res = await axios.get('/api/me');
+                        currentUser.value = res.data;
+                    } catch (e) {
+                        console.error(e);
+                    }
+                };
+
+                const fetchUsers = async () => {
+                    try {
+                        const res = await axios.get('/api/users');
+                        users.value = res.data;
+                    } catch (e) {
+                        console.error("Failed to fetch users (Access Denied?)", e);
+                        if (e.response && e.response.status === 403) {
+                            alert("您没有权限查看用户列表");
+                            window.location.href = "/";
+                        }
+                    }
+                };
+
+                const addUser = async () => {
+                    try {
+                        await axios.post('/api/users', newUser.value);
+                        showAddDialog.value = false;
+                        newUser.value = { username: '', password: '', validDays: 30 };
+                        fetchUsers();
+                        ElementPlus.ElMessage.success('用户创建成功');
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('创建失败: ' + (e.response?.data?.message || e.message));
+                    }
+                };
+
+                const formatDate = (dateStr) => {
+                    if (!dateStr) return '';
+                    return dayjs(dateStr).format('YYYY-MM-DD HH:mm:ss');
+                };
+
+                const isExpired = (dateStr) => {
+                    return dayjs(dateStr).isBefore(dayjs());
+                };
+                
+                const goHome = () => {
+                    window.location.href = "/";
+                };
+
+                onMounted(() => {
+                    fetchCurrentUser();
+                    fetchUsers();
+                });
+
+                return {
+                    currentUser,
+                    users,
+                    showAddDialog,
+                    newUser,
+                    addUser,
+                    formatDate,
+                    isExpired,
+                    goHome
+                };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

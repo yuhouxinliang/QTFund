@@ -116,7 +116,15 @@
                 <span>📈</span>
                 全市场 ETF 动量监控看板
             </h1>
-            <div class="meta-info">数据源: 实时数据库 | 状态: {{ dataStatus }}</div>
+            <div style="display: flex; align-items: center; gap: 15px; font-size: 14px;">
+                <div class="meta-info">数据源: 实时数据库 | 状态: {{ dataStatus }}</div>
+                <span v-if="currentUser.username" style="color: #fff;">
+                    <el-icon style="vertical-align: middle; margin-right: 4px;"><User /></el-icon>
+                    {{ currentUser.username }}
+                </span>
+                <el-link v-if="isAdmin" type="primary" :underline="false" href="/user_management.html" style="color: #409eff; font-weight: bold;">用户管理</el-link>
+                <el-link type="info" :underline="false" href="/logout" style="color: #bdc3c7;">退出</el-link>
+            </div>
         </div>
 
         <div class="main-container" @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseUp">
@@ -410,6 +418,12 @@
 
         const app = createApp({
             setup() {
+                // User State
+                const currentUser = ref({});
+                const isAdmin = computed(() => {
+                    return currentUser.value.roles && currentUser.value.roles.includes('ADMIN');
+                });
+
                 const loading = ref(false);
                 const chartLoading = ref(false);
                 const etfList = ref([]);
@@ -580,6 +594,15 @@
                 }
 
                 // 获取最新的数据日期
+                const fetchCurrentUser = async () => {
+                    try {
+                        const res = await axios.get('/api/me');
+                        currentUser.value = res.data;
+                    } catch (e) {
+                        console.error("Failed to fetch user info", e);
+                    }
+                };
+
                 const fetchLatestData = async () => {
                     loading.value = true;
                     dataStatus.value = '加载最新数据...';
@@ -976,10 +999,12 @@
                 }
 
                 onMounted(() => {
+                    fetchCurrentUser();
                     fetchLatestData();
                 });
 
                 return {
+                    currentUser, isAdmin,
                     loading, chartLoading, etfList, filteredList, searchText, minAmount, exchangeFilter, currentEtf,
                     chartMetric, quickTimeRange, targetDate, dataStatus, stockType,
                     currentMetrics, historyList, dataTableRef,
