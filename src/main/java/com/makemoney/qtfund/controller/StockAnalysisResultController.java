@@ -72,17 +72,23 @@ public class StockAnalysisResultController {
      * GET /api/stock-analysis/latest
      */
     @GetMapping("/latest")
-    public ResponseEntity<List<StockAnalysisResult>> getLatest(
-            @RequestParam(required = false) StockType stockType) {
+    public ResponseEntity<List<com.makemoney.qtfund.dto.StockSearchResult>> getLatest(
+            @RequestParam(required = false) StockType stockType,
+            @RequestParam(required = false, defaultValue = "7") Integer timeRange) {
+        
         Date latestDate = service.findLatestDate(stockType);
         if (latestDate == null) {
             return ResponseEntity.ok(List.of());
         }
         
-        if (stockType != null) {
-            return ResponseEntity.ok(service.findByStockTypeAndTargetDate(stockType, latestDate));
-        }
-        return ResponseEntity.ok(service.findByTargetDate(latestDate));
+        // 构造查询条件，复用 searchWithAnalysis 逻辑以返回计算指标
+        com.makemoney.qtfund.dto.StockSearchCriteria criteria = new com.makemoney.qtfund.dto.StockSearchCriteria();
+        criteria.setStockType(stockType);
+        criteria.setTargetDate(latestDate);
+        criteria.setTimeRange(timeRange);
+
+        List<com.makemoney.qtfund.dto.StockSearchResult> results = service.searchWithAnalysis(criteria);
+        return ResponseEntity.ok(results);
     }
 
     /**
@@ -105,7 +111,7 @@ public class StockAnalysisResultController {
      * GET /api/stock-analysis/search
      */
     @GetMapping("/search")
-    public ResponseEntity<List<StockAnalysisResult>> search(
+    public ResponseEntity<List<com.makemoney.qtfund.dto.StockSearchResult>> search(
             @RequestParam(required = false) String exchangeId,
             @RequestParam(required = false) String instrumentId,
             @RequestParam(required = false) StockType stockType,
@@ -114,7 +120,8 @@ public class StockAnalysisResultController {
             @RequestParam(required = false) Integer maxRanking,
             @RequestParam(required = false) Double minScore,
             @RequestParam(required = false) Double maxScore,
-            @RequestParam(required = false) Double minAmount) {
+            @RequestParam(required = false) Double minAmount,
+            @RequestParam(required = false) Integer timeRange) {
 
         com.makemoney.qtfund.dto.StockSearchCriteria criteria = new com.makemoney.qtfund.dto.StockSearchCriteria();
         criteria.setExchangeId(exchangeId);
@@ -125,12 +132,14 @@ public class StockAnalysisResultController {
         criteria.setMaxRanking(maxRanking);
         criteria.setMinScore(minScore);
         criteria.setMaxScore(maxScore);
+        criteria.setTimeRange(timeRange);
+        
         // 前端传来的单位是万，后端存储的是原始值，需要转换
         if (minAmount != null) {
             criteria.setMinAmount(minAmount * 10000);
         }
 
-        List<StockAnalysisResult> results = service.search(criteria);
+        List<com.makemoney.qtfund.dto.StockSearchResult> results = service.searchWithAnalysis(criteria);
         return ResponseEntity.ok(results);
     }
 

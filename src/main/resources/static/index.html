@@ -27,12 +27,35 @@
         .main-container { flex: 1; display: flex; overflow: hidden; }
         
         /* 左侧列表区 */
-        .left-panel { width: 500px; background: white; border-right: 1px solid #e6e6e6; display: flex; flex-direction: column; z-index: 10; flex-shrink: 0; }
+        .left-panel { 
+            background: white; 
+            border-right: 1px solid #e6e6e6; 
+            display: flex; 
+            flex-direction: column; 
+            z-index: 10; 
+            flex-shrink: 0; 
+            min-width: 0;
+            will-change: width; /* 性能优化 */
+        }
+        
+        /* 拖拽分割条 */
+        .resizer {
+            width: 5px;
+            cursor: col-resize;
+            background: #f0f2f5;
+            flex-shrink: 0;
+            transition: background 0.2s;
+            z-index: 20;
+        }
+        .resizer:hover, .resizer.active {
+            background: #409eff;
+        }
+
         .filter-bar { padding: 15px; border-bottom: 1px solid #ebeef5; background: #fff; }
         .data-table-container { flex: 1; overflow: hidden; position: relative; } 
         
         /* 右侧图表区 */
-        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; background-color: #f0f2f5; overflow-y: auto; overflow-x: hidden; }
+        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; background-color: #f0f2f5; overflow-y: auto; overflow-x: hidden; min-width: 0; }
         
         /* 卡片通用样式 */
         .chart-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; flex-direction: column; }
@@ -96,9 +119,9 @@
             <div class="meta-info">数据源: 实时数据库 | 状态: {{ dataStatus }}</div>
         </div>
 
-        <div class="main-container">
+        <div class="main-container" @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseUp">
             <!-- 左侧：ETF 列表 -->
-            <div class="left-panel">
+            <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }" v-show="leftPanelWidth > 0">
                 <div class="filter-bar">
                     <!-- 股票类型切换 -->
                     <div style="margin-bottom: 15px; text-align: center;">
@@ -111,12 +134,23 @@
                     <el-input v-model="searchText" placeholder="搜索代码/名称" style="margin-bottom: 10px;" clearable>
                         <template #prefix>🔍</template>
                     </el-input>
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                        <el-input-number v-model="minAmount" :min="0" :step="1000" placeholder="最小成交额(万)" style="width: 100%;" :controls="false">
-                            <template #prefix>¥</template>
+                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                        <!-- 自定义时间范围 -->
+                        <div style="width: 110px;">
+                            <el-select v-model="selectedTimeRange" placeholder="范围" @change="handleTimeRangeChange">
+                                <el-option label="7天" :value="7"></el-option>
+                                <el-option label="15天" :value="15"></el-option>
+                                <el-option label="30天" :value="30"></el-option>
+                                <el-option label="自定义" value="custom"></el-option>
+                            </el-select>
+                        </div>
+                        <!-- 如果选了自定义，显示输入框覆盖默认 Select，或者弹窗，这里简单处理：如果是custom显示输入框 -->
+                        <el-input-number v-if="selectedTimeRange === 'custom'" v-model="customTimeRange" :min="1" :max="365" controls-position="right" style="width: 80px;" placeholder="天"></el-input-number>
+
+                        <el-input-number v-model="minAmount" :min="0" :step="1000" placeholder="最小成交(万)" style="flex: 1; min-width: 100px;" :controls="false">
                             <template #suffix>万</template>
                         </el-input-number>
-                        <el-select v-model="exchangeFilter" placeholder="交易所" style="width: 100px;">
+                        <el-select v-model="exchangeFilter" placeholder="交易所" style="width: 80px;">
                             <el-option label="全部" value=""></el-option>
                             <el-option label="SH" value="SH"></el-option>
                             <el-option label="SZ" value="SZ"></el-option>
@@ -138,6 +172,7 @@
 
                 <div class="data-table-container">
                     <el-table 
+                        ref="dataTableRef"
                         :data="filteredList" 
                         style="width: 100%; height: 100%;" 
                         highlight-current-row
@@ -147,26 +182,26 @@
                         stripe
                         border
                     >
-                        <el-table-column prop="instrumentId" label="代码" width="80" fixed sortable></el-table-column>
+                        <el-table-column prop="instrumentId" label="代码" min-width="80" fixed sortable></el-table-column>
                         <el-table-column prop="instrumentName" label="名称" min-width="120" show-overflow-tooltip fixed>
                             <template #default="scope">
                                 <div style="font-weight: 600; font-size: 14px;">{{ scope.row.instrumentName }}</div>
                                 <div style="font-size: 12px; color: #909399;">{{ scope.row.exchangeId }}</div>
                             </template>
                         </el-table-column>
-                        <el-table-column prop="score" label="Score" width="90" sortable align="right">
+                        <el-table-column prop="score" label="Score" min-width="90" sortable align="right">
                             <template #default="scope">
                                 <span style="font-weight: bold; font-size: 15px; color: #303133;">{{ scope.row.score?.toFixed(1) }}</span>
                             </template>
                         </el-table-column>
-                        <el-table-column prop="ranking" label="排名" width="85" sortable align="center">
+                        <el-table-column prop="ranking" label="排名" min-width="85" sortable align="center">
                             <template #default="scope">
                                 <el-tag size="small" :type="scope.row.ranking <= 10 ? 'danger' : (scope.row.ranking <= 50 ? 'warning' : 'info')" effect="dark" style="font-weight: bold;">
                                     #{{ scope.row.ranking }}
                                 </el-tag>
                             </template>
                         </el-table-column>
-                        <el-table-column prop="rankingChange" label="变化" width="80" sortable align="right">
+                        <el-table-column prop="rankingChange" label="变化" min-width="80" sortable align="right">
                             <template #default="scope">
                                 <span v-if="scope.row.rankingChange > 0" class="rank-up">
                                     ⬆ {{ scope.row.rankingChange }}
@@ -177,7 +212,39 @@
                                 <span v-else style="color: #dcdfe6;">-</span>
                             </template>
                         </el-table-column>
-                        <el-table-column prop="amount" label="成交(亿)" width="95" sortable align="right">
+                        <!-- 新增三列：连续上涨、累计涨幅、周期排名变化 -->
+                        <el-table-column prop="consecutiveRisingDays" label="连涨" min-width="70" sortable align="center">
+                            <template #default="scope">
+                                <span v-if="scope.row.consecutiveRisingDays > 0" style="color: #f56c6c; font-weight: bold;">
+                                    {{ scope.row.consecutiveRisingDays }}天
+                                </span>
+                                <span v-else style="color: #999;">-</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="cumulativeIncrease" label="累涨" min-width="80" sortable align="right">
+                            <template #default="scope">
+                                <span v-if="scope.row.cumulativeIncrease > 0" style="color: #f56c6c;">
+                                    +{{ scope.row.cumulativeIncrease }}%
+                                </span>
+                                <span v-else-if="scope.row.cumulativeIncrease < 0" style="color: #67c23a;">
+                                    {{ scope.row.cumulativeIncrease }}%
+                                </span>
+                                <span v-else>-</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="periodRankingChange" label="周期升" min-width="80" sortable align="right">
+                            <template #default="scope">
+                                <span v-if="scope.row.periodRankingChange > 0" class="rank-up">
+                                    ⬆ {{ scope.row.periodRankingChange }}
+                                </span>
+                                <span v-else-if="scope.row.periodRankingChange < 0" class="rank-down">
+                                    ⬇ {{ Math.abs(scope.row.periodRankingChange) }}
+                                </span>
+                                <span v-else>-</span>
+                            </template>
+                        </el-table-column>
+                        
+                        <el-table-column prop="amount" label="成交(亿)" min-width="95" sortable align="right">
                             <template #default="scope">
                                 {{ (scope.row.amount / 100000000).toFixed(2) }}
                             </template>
@@ -189,8 +256,16 @@
                 </div>
             </div>
 
+            <!-- 分割条 -->
+            <div class="resizer" 
+                 @mousedown.prevent="handleMouseDown" 
+                 @dblclick="togglePanel"
+                 :class="{ active: isResizing }"
+                 title="左右拖拽调整大小，双击切换显示模式">
+            </div>
+
             <!-- 右侧：详情与图表 -->
-            <div class="right-panel">
+            <div class="right-panel" v-show="rightPanelVisible">
                 <template v-if="currentEtf">
                     
                     <!-- 1. 顶部趋势图区域 -->
@@ -203,7 +278,7 @@
                                     <el-tag effect="dark" type="danger" size="large">当前排名: #{{ currentEtf.ranking }}</el-tag>
                                     <el-tag type="warning" effect="dark" size="large">Score: {{ currentEtf.score?.toFixed(2) }}</el-tag>
                                     <el-tag type="info" effect="plain">成交额: {{ (currentEtf.amount / 10000).toFixed(0) }}万</el-tag>
-                                    <el-tag type="success" effect="plain">收盘价: {{ currentEtf.close }}</el-tag>
+                                    <el-tag type="success" effect="plain">收盘价: {{ currentEtf.close?.toFixed(3) }}</el-tag>
                                 </div>
                             </div>
                         </div>
@@ -229,6 +304,34 @@
                                     <el-radio-button :label="365">1年</el-radio-button>
                                 </el-radio-group>
                             </div>
+
+                            <div class="control-group" style="margin-left: auto;">
+                                <span class="control-label">对比:</span>
+                                <el-select
+                                    v-model="compareList"
+                                    multiple
+                                    filterable
+                                    remote
+                                    reserve-keyword
+                                    placeholder="搜索并添加对比..."
+                                    :remote-method="remoteSearchCompare"
+                                    :loading="compareLoading"
+                                    @change="handleCompareChange"
+                                    @remove-tag="handleRemoveCompare"
+                                    style="width: 240px"
+                                    size="small"
+                                >
+                                    <el-option
+                                        v-for="item in compareOptions"
+                                        :key="item.instrumentId"
+                                        :label="item.instrumentName"
+                                        :value="item.instrumentId"
+                                    >
+                                        <span style="float: left">{{ item.instrumentName }}</span>
+                                        <span style="float: right; color: #8492a6; font-size: 13px">{{ item.instrumentId }}</span>
+                                    </el-option>
+                                </el-select>
+                            </div>
                         </div>
 
                         <div id="trendChart" v-loading="chartLoading"></div>
@@ -243,8 +346,8 @@
                             <div class="kpi-grid">
                                 <div class="kpi-item">
                                     <div class="kpi-title">近 {{ quickTimeRange }} 天最大回撤</div>
-                                    <div class="kpi-value text-red">{{ currentMetrics.drawdown }}%</div>
-                                    <div class="kpi-desc">最高价: {{ currentMetrics.highPrice }}</div>
+                                    <div class="kpi-value text-red">{{ Number(currentMetrics.drawdown).toFixed(3) }}%</div>
+                                    <div class="kpi-desc">最高价: {{ Number(currentMetrics.highPrice).toFixed(3) }}</div>
                                 </div>
                                 <div class="kpi-item">
                                     <div class="kpi-title">均线趋势</div>
@@ -276,8 +379,12 @@
                                  <el-table-column prop="targetDate" label="日期" width="100">
                                      <template #default="scope">{{ formatDateSimple(scope.row.targetDate) }}</template>
                                  </el-table-column>
-                                 <el-table-column prop="close" label="收盘" width="70"></el-table-column>
-                                 <el-table-column prop="score" label="Score" width="70"></el-table-column>
+                                 <el-table-column prop="close" label="收盘" width="70">
+                                     <template #default="scope">{{ scope.row.close?.toFixed(3) }}</template>
+                                 </el-table-column>
+                                 <el-table-column prop="score" label="Score" width="70">
+                                     <template #default="scope">{{ scope.row.score?.toFixed(2) }}</template>
+                                 </el-table-column>
                                  <el-table-column prop="ranking" label="排名" width="60"></el-table-column>
                                  <el-table-column prop="rankingChange" label="变动" align="right">
                                     <template #default="scope">
@@ -308,14 +415,140 @@
                 const etfList = ref([]);
                 const searchText = ref('');
                 const minAmount = ref(0);
+                const selectedTimeRange = ref(7); // 默认7天
+                const customTimeRange = ref(7);
                 const exchangeFilter = ref('');
                 const currentEtf = ref(null);
                 const targetDate = ref(''); // 当前选中的日期
                 const stockType = ref('STOCK'); // 默认为股票
                 const dataStatus = ref('初始化中...');
+
+                // 对比功能相关状态
+                const compareList = ref([]); // 选中的 ID 列表
+                const compareOptions = ref([]); // 下拉选项
+                const compareLoading = ref(false);
+                const compareHistoryData = ref({}); // 缓存对比数据的历史记录 {id: [history...]}
+                const compareColorMap = ref({}); // 为每个对比 ID 分配颜色
+                // 优化后的高对比度颜色盘，更鲜艳，区分度更高
+                const colorPalette = [
+                    '#FF0000', // 鲜红
+                    '#0000FF', // 纯蓝
+                    '#00AA00', // 鲜绿
+                    '#FF00FF', // 洋红
+                    '#FF8000', // 橙色
+                    '#00FFFF', // 青色
+                    '#800080', // 紫色
+                    '#008080', // 蓝绿
+                    '#800000', // 深红
+                    '#000080'  // 深蓝
+                ];
                 
+                // 布局控制：默认列表占 65%
+                const initialLeftWidth = window.innerWidth * 0.65;
+                const leftPanelWidth = ref(initialLeftWidth);
+                const isResizing = ref(false);
+                const lastLeftWidth = ref(initialLeftWidth); // 记录上次宽度以便恢复
+                const rightPanelVisible = computed(() => {
+                    // 如果左侧面板宽度占满了（留给右侧的空间很少），则隐藏右侧
+                    // 这里简单处理：只要左侧没占满，右侧就显示
+                    // 也可以反过来控制：当 leftPanelWidth 很大时...
+                    // 实际上 CSS flex:1 会自动处理，但为了 v-show 效果
+                    // 我们假设总宽度为 window.innerWidth，如果 leftPanelWidth > window.innerWidth - 50, 则隐藏右侧
+                    return true; 
+                });
+                
+                // 拖拽相关逻辑
+                let animationFrameId = null;
+                let lastResizeTime = 0;
+
+                const handleMouseDown = () => {
+                    isResizing.value = true;
+                    // 防止选中文字
+                    document.body.style.userSelect = 'none';
+                    document.body.style.cursor = 'col-resize';
+                };
+
+                const handleMouseMove = (e) => {
+                    if (!isResizing.value) return;
+                    
+                    // 使用 requestAnimationFrame 优化 DOM 更新频率
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+
+                    animationFrameId = requestAnimationFrame(() => {
+                        // 限制最小/最大宽度
+                        const minWidth = 0;
+                        const maxWidth = window.innerWidth - 20; // 留一点给右边
+                        
+                        let newWidth = e.clientX;
+                        if (newWidth < 50) newWidth = 0; // 吸附到0
+                        if (newWidth > maxWidth) newWidth = maxWidth;
+                        
+                        leftPanelWidth.value = newWidth;
+                        
+                        // 节流图表 resize：每 100ms 触发一次，避免过于频繁导致卡顿
+                        const now = Date.now();
+                        if (myChart && (now - lastResizeTime > 100)) {
+                            myChart.resize({
+                                animation: { duration: 0 } // 调整大小时禁用动画，提高性能
+                            });
+                            lastResizeTime = now;
+                        }
+                    });
+                };
+
+                const handleMouseUp = () => {
+                    if (isResizing.value) {
+                        isResizing.value = false;
+                        document.body.style.userSelect = '';
+                        document.body.style.cursor = '';
+                        
+                        if (animationFrameId) {
+                            cancelAnimationFrame(animationFrameId);
+                            animationFrameId = null;
+                        }
+
+                        // 拖拽结束强制 resize 一次，确保图表大小正确
+                        // 同时触发表格的重绘，确保列宽自适应
+                        nextTick(() => {
+                            if (myChart) myChart.resize();
+                            if (dataTableRef.value) {
+                                dataTableRef.value.doLayout();
+                            }
+                        });
+                    }
+                };
+
+                // 双击切换显示模式（全屏列表 / 默认 / 全屏详情）
+                // 简单循环：默认 -> 仅详情(0) -> 仅列表(全屏) -> 默认
+                const togglePanel = () => {
+                    const totalWidth = window.innerWidth;
+                    const defaultWidth = totalWidth * 0.65;
+                    
+                    if (leftPanelWidth.value > 0 && leftPanelWidth.value < totalWidth - 50) {
+                        // 当前是默认状态 -> 切换到仅详情 (Left=0)
+                        lastLeftWidth.value = leftPanelWidth.value;
+                        leftPanelWidth.value = 0;
+                    } else if (leftPanelWidth.value === 0) {
+                        // 当前是仅详情 -> 切换到仅列表 (Left=Total)
+                        leftPanelWidth.value = totalWidth;
+                    } else {
+                        // 当前是仅列表 -> 切换回上次的默认宽度
+                        leftPanelWidth.value = lastLeftWidth.value || defaultWidth;
+                    }
+                    
+                    nextTick(() => {
+                         if (myChart) myChart.resize();
+                         if (dataTableRef.value) {
+                             dataTableRef.value.doLayout();
+                         }
+                    });
+                };
+
                 // 状态变量
                 const chartMetric = ref('score'); 
+                const dataTableRef = ref(null);  
                 const quickTimeRange = ref(90); 
                 const historyList = ref([]); // 当前选中 ETF 的历史数据
 
@@ -351,9 +584,19 @@
                     loading.value = true;
                     dataStatus.value = '加载最新数据...';
                     try {
-                        // 尝试直接获取 /latest，并带上当前选中的 stockType
+                        // 尝试直接获取 /latest，并带上当前选中的 stockType 和 timeRange
+                        let timeRangeVal = 7;
+                        if (selectedTimeRange.value === 'custom') {
+                            timeRangeVal = customTimeRange.value;
+                        } else {
+                            timeRangeVal = selectedTimeRange.value;
+                        }
+
                         const response = await axios.get('/api/stock-analysis/latest', {
-                            params: { stockType: stockType.value }
+                            params: { 
+                                stockType: stockType.value,
+                                timeRange: timeRangeVal
+                            }
                         });
                         
                         etfList.value = []; // 先清空，避免数据残留
@@ -396,6 +639,13 @@
                         if (minAmount.value > 0) {
                             params.minAmount = minAmount.value; // 后端会自动乘以10000
                         }
+                        
+                        // 处理时间范围参数
+                        if (selectedTimeRange.value === 'custom') {
+                            params.timeRange = customTimeRange.value;
+                        } else {
+                            params.timeRange = selectedTimeRange.value;
+                        }
 
                         const response = await axios.get('/api/stock-analysis/search', { params });
                         etfList.value = response.data;
@@ -409,12 +659,88 @@
 
                 // 监听 minAmount 变化，防抖后触发查询
                 let debounceTimer = null;
-                watch(minAmount, () => {
+                watch([minAmount, selectedTimeRange, customTimeRange], () => {
                     if (debounceTimer) clearTimeout(debounceTimer);
                     debounceTimer = setTimeout(() => {
                         fetchData();
                     }, 1000);
                 });
+                
+                const handleTimeRangeChange = () => {
+                    if (selectedTimeRange.value !== 'custom') {
+                        fetchData();
+                    }
+                };
+
+                // 远程搜索对比股票
+                const remoteSearchCompare = (query) => {
+                    if (query) {
+                        compareLoading.value = true;
+                        setTimeout(() => {
+                            compareLoading.value = false;
+                            // 从已有的 etfList 中搜索 (假设已加载全量最新数据)
+                            // 如果 etfList 数据量大，这里是全量搜索。
+                            // 如果需要搜库，需调用后端 search 接口。鉴于当前 latest 已经拉取了列表，直接前端搜。
+                            compareOptions.value = etfList.value.filter(item => {
+                                return item.instrumentName.includes(query) || item.instrumentId.includes(query);
+                            });
+                        }, 200);
+                    } else {
+                        compareOptions.value = [];
+                    }
+                };
+
+                // 处理对比选择变更
+                const handleCompareChange = async (val) => {
+                    // val 是 ID 数组
+                    // 1. 找出新增的 ID
+                    const newIds = val.filter(id => !compareHistoryData.value[id]);
+                    
+                    // 2. 找出移除的 ID，清理缓存
+                    Object.keys(compareHistoryData.value).forEach(id => {
+                        if (!val.includes(id)) {
+                            delete compareHistoryData.value[id];
+                            delete compareColorMap.value[id];
+                        }
+                    });
+
+                    // 3. 为新增 ID 分配颜色并获取数据
+                    for (const id of newIds) {
+                        // 分配颜色
+                        const colorIndex = Object.keys(compareColorMap.value).length % colorPalette.length;
+                        compareColorMap.value[id] = colorPalette[colorIndex];
+                        
+                        // 获取数据 (需要知道 exchangeId，从 etfList 或 compareOptions 找)
+                        let target = etfList.value.find(item => item.instrumentId === id);
+                        if (!target && compareOptions.value) {
+                             target = compareOptions.value.find(item => item.instrumentId === id);
+                        }
+                        
+                        if (target) {
+                            await fetchCompareHistory(target.exchangeId, target.instrumentId);
+                        }
+                    }
+                    
+                    updateChart();
+                };
+
+                const handleRemoveCompare = (tag) => {
+                    // tag 是被移除的 ID
+                    // 实际上 handleCompareChange 会被触发，这里可能 redundant，但 Element Plus 文档建议 handle change
+                };
+
+                // 获取对比数据的历史
+                const fetchCompareHistory = async (exchangeId, instrumentId) => {
+                    try {
+                        const response = await axios.get('/api/stock-analysis/search', {
+                            params: { exchangeId, instrumentId }
+                        });
+                        // 存入缓存
+                        compareHistoryData.value[instrumentId] = response.data;
+                    } catch (error) {
+                        console.error('Fetch compare history failed', error);
+                    }
+                };
 
                 // 获取单个 ETF 的历史数据
                 const fetchHistory = async (exchangeId, instrumentId) => {
@@ -498,7 +824,7 @@
                     // 2. 计算指标
                     const maxPrice = Math.max(...prices);
                     const currentPrice = prices[prices.length - 1];
-                    const drawdown = ((currentPrice - maxPrice) / maxPrice * 100).toFixed(2);
+                    const drawdown = ((currentPrice - maxPrice) / maxPrice * 100);
                     
                     // 简单 MA 计算 (基于完整历史以保证准确性，然后截取)
                     // ... (rest of the function)
@@ -513,8 +839,8 @@
                     const lastClose = closes[lastIdx];
                     
                     currentMetrics.value = {
-                        drawdown: drawdown,
-                        highPrice: maxPrice.toFixed(3),
+                        drawdown: drawdown, // 保持原始值，显示时格式化
+                        highPrice: maxPrice, // 保持原始值
                         isUpTrend: (ma20Full[lastIdx] > ma60Full[lastIdx]), // 简单定义
                         ma5: lastClose > ma5Full[lastIdx],
                         ma10: lastClose > ma10Full[lastIdx],
@@ -534,11 +860,18 @@
                     const option = {
                         title: { text: `${dates[0]} 至 ${dates[dates.length-1]} 趋势`, left: 'center', textStyle: { fontSize: 14, color: '#999' } },
                         tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-                        grid: { right: '15%', left: '8%', bottom: '10%', top: '15%' },
-                        legend: { data: ['收盘价', selected.name], top: 25 },
+                        grid: { right: '15%', left: '8%', bottom: '20%', top: '15%' },
+                        legend: { 
+                            data: ['收盘价', selected.name], 
+                            bottom: 0,
+                            top: 'auto',
+                            type: 'scroll',
+                            padding: [5, 10],
+                            itemGap: 15
+                        },
                         xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#ccc' } } },
                         yAxis: [
-                            { type: 'value', name: '收盘价', position: 'left', scale: true, splitLine: { show: true, lineStyle: { type: 'dashed' } } },
+                            { type: 'log', name: '收盘价', position: 'left', scale: true, splitLine: { show: true, lineStyle: { type: 'dashed' } }, logBase: 10 },
                             { type: 'value', name: selected.name, position: 'right', scale: true, inverse: selected.inverse, axisLine: { show: true, lineStyle: { color: selected.color } }, axisLabel: { color: selected.color }, splitLine: { show: false } }
                         ],
                         series: [
@@ -546,9 +879,69 @@
                             { name: selected.name, type: selected.type, data: selected.data, yAxisIndex: 1, showSymbol: false, itemStyle: { color: selected.color }, areaStyle: selected.area ? { opacity: 0.2 } : null }
                         ]
                     };
+
+                    // 添加对比系列
+                    if (compareList.value && compareList.value.length > 0) {
+                        compareList.value.forEach(id => {
+                            const compHistory = compareHistoryData.value[id];
+                            if (!compHistory) return;
+
+                            // 需要对齐日期。简单处理：创建一个 map date -> value
+                            // 注意：compHistory 可能是乱序的，先排一下
+                            const sortedComp = [...compHistory].sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
+                            
+                            // 构建数据映射
+                            const priceMap = {};
+                            const metricMapData = {};
+                            sortedComp.forEach(item => {
+                                const dStr = formatDateSimple(item.targetDate);
+                                priceMap[dStr] = item.close;
+                                metricMapData[dStr] = item[chartMetric.value]; // score, ranking, amount
+                            });
+
+                            // 按照主图表的 dates 对齐数据
+                            const alignedPrices = dates.map(d => priceMap[d] !== undefined ? priceMap[d] : null);
+                            const alignedMetric = dates.map(d => metricMapData[d] !== undefined ? metricMapData[d] : null);
+
+                            // 获取名称 (从 etfList 或 compareOptions 找)
+                            let name = id;
+                            const target = etfList.value.find(i => i.instrumentId === id) || (compareOptions.value ? compareOptions.value.find(i => i.instrumentId === id) : null);
+                            if (target) name = target.instrumentName;
+
+                            const color = compareColorMap.value[id] || '#999';
+
+                            // 添加 Price Series (Left Axis) - 虚线
+                            option.series.push({
+                                name: `${name} (价)`,
+                                type: 'line',
+                                data: alignedPrices,
+                                yAxisIndex: 0,
+                                showSymbol: false,
+                                itemStyle: { color: color },
+                                lineStyle: { width: 2.5, type: 'dashed' },
+                                tooltip: { valueFormatter: (value) => value ? value.toFixed(3) : '-' }
+                            });
+                            option.legend.data.push(`${name} (价)`);
+
+                            // 添加 Metric Series (Right Axis) - 点线或其他样式
+                            // 为了区分，对比的 Metric 用点线，或者更细的实线？
+                            // 考虑到 ranking 是 inverse 的，如果是 ranking 模式，对比也要 inverse (已经由 yAxis 控制)
+                            option.series.push({
+                                name: `${name} (${selected.name})`,
+                                type: 'line',
+                                data: alignedMetric,
+                                yAxisIndex: 1,
+                                showSymbol: false,
+                                itemStyle: { color: color },
+                                lineStyle: { width: 2.5, type: 'dotted' },
+                                areaStyle: null
+                            });
+                            option.legend.data.push(`${name} (${selected.name})`);
+                        });
+                    }
                     
                     if (myChart) {
-                        myChart.setOption(option, true);
+                        myChart.setOption(option, true); // true = not merge, reset
                     }
                 };
 
@@ -589,8 +982,11 @@
                 return {
                     loading, chartLoading, etfList, filteredList, searchText, minAmount, exchangeFilter, currentEtf,
                     chartMetric, quickTimeRange, targetDate, dataStatus, stockType,
-                    currentMetrics, historyList,
-                    handleRowClick, updateChart, handleQuickTimeChange, fetchData, fetchLatestData, disabledDate, formatDateSimple
+                    currentMetrics, historyList, dataTableRef,
+                    handleRowClick, updateChart, handleQuickTimeChange, fetchData, fetchLatestData, disabledDate, formatDateSimple,
+                    leftPanelWidth, isResizing, handleMouseDown, handleMouseMove, handleMouseUp, togglePanel, rightPanelVisible,
+                    compareList, compareOptions, compareLoading, remoteSearchCompare, handleCompareChange, handleRemoveCompare,
+                    selectedTimeRange, customTimeRange, handleTimeRangeChange
                 };
             }
         });

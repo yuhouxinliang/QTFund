@@ -14,6 +14,7 @@ public class StockSearchCriteria {
     private Double maxScore;
     private Double minAmount;
     private Double maxAmount;
+    private Integer timeRange; // 时间范围（天数）
 
     // Getters and Setters
     public String getExchangeId() { return exchangeId; }
@@ -45,4 +46,7 @@ public class StockSearchCriteria {
 
     public Double getMaxAmount() { return maxAmount; }
     public void setMaxAmount(Double maxAmount) { this.maxAmount = maxAmount; }
+
+    public Integer getTimeRange() { return timeRange; }
+    public void setTimeRange(Integer timeRange) { this.timeRange = timeRange; }
 }

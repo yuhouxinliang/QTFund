@@ -55,6 +55,11 @@ public interface StockAnalysisResultRepository extends MongoRepository<StockAnal
      * 根据类型获取最新日期的一条记录
      */
     StockAnalysisResult findFirstByStockTypeOrderByTargetDateDesc(StockType stockType);
+
+    /**
+     * 查询指定 ID 列表在指定日期范围内的所有数据
+     */
+    List<StockAnalysisResult> findByInstrumentIdInAndTargetDateBetween(List<String> instrumentIds, Date startDate, Date endDate);
 }
 
 
