@@ -102,7 +102,7 @@
                 <div class="filter-bar">
                     <!-- 股票类型切换 -->
                     <div style="margin-bottom: 15px; text-align: center;">
-                        <el-radio-group v-model="stockType" @change="fetchData" size="large">
+                        <el-radio-group v-model="stockType" @change="fetchLatestData" size="large">
                             <el-radio-button label="STOCK">股票/ETF</el-radio-button>
                             <el-radio-button label="INDEX">宽基指数</el-radio-button>
                         </el-radio-group>
@@ -351,8 +351,13 @@
                     loading.value = true;
                     dataStatus.value = '加载最新数据...';
                     try {
-                        // 首先尝试直接获取 /latest
-                        const response = await axios.get('/api/stock-analysis/latest');
+                        // 尝试直接获取 /latest，并带上当前选中的 stockType
+                        const response = await axios.get('/api/stock-analysis/latest', {
+                            params: { stockType: stockType.value }
+                        });
+                        
+                        etfList.value = []; // 先清空，避免数据残留
+                        
                         if (response.data && response.data.length > 0) {
                             etfList.value = response.data;
                             // 从第一条数据获取日期
@@ -362,7 +367,11 @@
                             dataStatus.value = '在线';
                         } else {
                             dataStatus.value = '无数据';
-                            etfList.value = [];
+                            targetDate.value = ''; // 如果没有数据，清空日期
+                            // 使用 Element Plus 的消息提示
+                            if (window.ElementPlus) {
+                                ElementPlus.ElMessage.warning('该分类下暂无最新数据');
+                            }
                         }
                     } catch (error) {
                         console.error('Fetch latest failed', error);
@@ -379,12 +388,16 @@
                     if (!targetDate.value) return;
                     loading.value = true;
                     try {
-                        const response = await axios.get('/api/stock-analysis/search', {
-                            params: { 
-                                targetDate: targetDate.value,
-                                stockType: stockType.value 
-                            }
-                        });
+                        const params = { 
+                            targetDate: targetDate.value,
+                            stockType: stockType.value 
+                        };
+                        
+                        if (minAmount.value > 0) {
+                            params.minAmount = minAmount.value; // 后端会自动乘以10000
+                        }
+
+                        const response = await axios.get('/api/stock-analysis/search', { params });
                         etfList.value = response.data;
                     } catch (error) {
                         console.error('Fetch data failed', error);
@@ -393,6 +406,15 @@
                         loading.value = false;
                     }
                 };
+
+                // 监听 minAmount 变化，防抖后触发查询
+                let debounceTimer = null;
+                watch(minAmount, () => {
+                    if (debounceTimer) clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => {
+                        fetchData();
+                    }, 1000);
+                });
 
                 // 获取单个 ETF 的历史数据
                 const fetchHistory = async (exchangeId, instrumentId) => {
@@ -419,17 +441,13 @@
 
                 const filteredList = computed(() => {
                     return etfList.value.filter(item => {
-                        // 兼容旧数据（没有 stockType 字段的默认为 STOCK）
-                        const itemType = item.stockType || 'STOCK';
-                        const matchType = itemType === stockType.value;
-                        
                         const matchText = !searchText.value || 
                             item.instrumentId.includes(searchText.value) || 
                             item.instrumentName.includes(searchText.value);
-                        const matchAmount = (item.amount || 0) >= minAmount.value * 10000;
+                        // 金额过滤已移至后端
                         const matchEx = !exchangeFilter.value || item.exchangeId === exchangeFilter.value;
                         
-                        return matchType && matchText && matchAmount && matchEx;
+                        return matchText && matchEx;
                     });
                 });
 
@@ -572,7 +590,7 @@
                     loading, chartLoading, etfList, filteredList, searchText, minAmount, exchangeFilter, currentEtf,
                     chartMetric, quickTimeRange, targetDate, dataStatus, stockType,
                     currentMetrics, historyList,
-                    handleRowClick, updateChart, handleQuickTimeChange, fetchData, disabledDate, formatDateSimple
+                    handleRowClick, updateChart, handleQuickTimeChange, fetchData, fetchLatestData, disabledDate, formatDateSimple
                 };
             }
         });

@@ -19,9 +19,16 @@ public class StockAnalysisResultService {
     @Autowired
     private StockAnalysisResultRepository repository;
 
+    @Autowired
+    private com.makemoney.qtfund.repository.StockAnalysisResultCustomRepository customRepository;
+
     /**
-     * 根据类型和日期查询
+     * 根据条件动态搜索
      */
+    public List<StockAnalysisResult> search(com.makemoney.qtfund.dto.StockSearchCriteria criteria) {
+        return customRepository.search(criteria);
+    }
+
     public List<StockAnalysisResult> findByStockTypeAndTargetDate(StockType stockType, Date targetDate) {
         return repository.findByStockTypeAndTargetDate(stockType, targetDate);
     }
@@ -84,6 +91,52 @@ public class StockAnalysisResultService {
      */
     public List<StockAnalysisResult> findByExchangeIdAndInstrumentId(String exchangeId, String instrumentId) {
         return repository.findByExchangeIdAndInstrumentId(exchangeId, instrumentId);
+    }
+
+    /**
+     * 获取股票详情，包含最新数据、历史数据及计算指标
+     */
+    public com.makemoney.qtfund.dto.StockDetailResponse getStockDetail(String exchangeId, String instrumentId) {
+        List<StockAnalysisResult> history = repository.findByExchangeIdAndInstrumentId(exchangeId, instrumentId);
+        
+        if (history.isEmpty()) {
+            return null;
+        }
+
+        // 按日期降序排序
+        history.sort((a, b) -> {
+            if (a.getTargetDate() == null && b.getTargetDate() == null) return 0;
+            if (a.getTargetDate() == null) return 1;
+            if (b.getTargetDate() == null) return -1;
+            return b.getTargetDate().compareTo(a.getTargetDate());
+        });
+        
+        StockAnalysisResult latest = history.get(0);
+        
+        com.makemoney.qtfund.dto.StockDetailResponse response = new com.makemoney.qtfund.dto.StockDetailResponse(latest, history);
+        
+        // 计算平均分 (所有历史数据的平均分)
+        double avgScore = history.stream()
+                .mapToDouble(StockAnalysisResult::getScore)
+                .average()
+                .orElse(0.0);
+        // 保留两位小数
+        response.setAverageScore(Math.round(avgScore * 100.0) / 100.0);
+        
+        // 计算趋势
+        if (latest.getScoreChange() != null) {
+            if (latest.getScoreChange() > 0) {
+                response.setTrend("RISING");
+            } else if (latest.getScoreChange() < 0) {
+                response.setTrend("FALLING");
+            } else {
+                response.setTrend("STABLE");
+            }
+        } else {
+            response.setTrend("UNKNOWN");
+        }
+        
+        return response;
     }
 
     /**
@@ -159,8 +212,13 @@ public class StockAnalysisResultService {
     /**
      * 获取最新日期
      */
-    public Date findLatestDate() {
-        StockAnalysisResult result = repository.findFirstByOrderByTargetDateDesc();
+    public Date findLatestDate(StockType stockType) {
+        StockAnalysisResult result;
+        if (stockType != null) {
+            result = repository.findFirstByStockTypeOrderByTargetDateDesc(stockType);
+        } else {
+            result = repository.findFirstByOrderByTargetDateDesc();
+        }
         return result != null ? result.getTargetDate() : null;
     }
 }

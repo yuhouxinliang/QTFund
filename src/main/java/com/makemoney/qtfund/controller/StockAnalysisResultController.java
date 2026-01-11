@@ -72,17 +72,37 @@ public class StockAnalysisResultController {
      * GET /api/stock-analysis/latest
      */
     @GetMapping("/latest")
-    public ResponseEntity<List<StockAnalysisResult>> getLatest() {
-        Date latestDate = service.findLatestDate();
+    public ResponseEntity<List<StockAnalysisResult>> getLatest(
+            @RequestParam(required = false) StockType stockType) {
+        Date latestDate = service.findLatestDate(stockType);
         if (latestDate == null) {
             return ResponseEntity.ok(List.of());
+        }
+        
+        if (stockType != null) {
+            return ResponseEntity.ok(service.findByStockTypeAndTargetDate(stockType, latestDate));
         }
         return ResponseEntity.ok(service.findByTargetDate(latestDate));
     }
 
     /**
+     * 获取股票/指数详情（包含最新数据、历史走势及分析指标）
+     * GET /api/stock-analysis/detail/{exchangeId}/{instrumentId}
+     */
+    @GetMapping("/detail/{exchangeId}/{instrumentId}")
+    public ResponseEntity<com.makemoney.qtfund.dto.StockDetailResponse> getDetail(
+            @PathVariable String exchangeId,
+            @PathVariable String instrumentId) {
+        com.makemoney.qtfund.dto.StockDetailResponse detail = service.getStockDetail(exchangeId, instrumentId);
+        if (detail != null) {
+            return ResponseEntity.ok(detail);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    /**
      * 根据交易所代码和合约代码查询
-     * GET /api/stock-analysis/search?exchangeId={exchangeId}&instrumentId={instrumentId}
+     * GET /api/stock-analysis/search
      */
     @GetMapping("/search")
     public ResponseEntity<List<StockAnalysisResult>> search(
@@ -93,36 +113,25 @@ public class StockAnalysisResultController {
             @RequestParam(required = false) Integer minRanking,
             @RequestParam(required = false) Integer maxRanking,
             @RequestParam(required = false) Double minScore,
-            @RequestParam(required = false) Double maxScore) {
+            @RequestParam(required = false) Double maxScore,
+            @RequestParam(required = false) Double minAmount) {
 
-        if (stockType != null && targetDate != null) {
-            return ResponseEntity.ok(service.findByStockTypeAndTargetDate(stockType, targetDate));
+        com.makemoney.qtfund.dto.StockSearchCriteria criteria = new com.makemoney.qtfund.dto.StockSearchCriteria();
+        criteria.setExchangeId(exchangeId);
+        criteria.setInstrumentId(instrumentId);
+        criteria.setStockType(stockType);
+        criteria.setTargetDate(targetDate);
+        criteria.setMinRanking(minRanking);
+        criteria.setMaxRanking(maxRanking);
+        criteria.setMinScore(minScore);
+        criteria.setMaxScore(maxScore);
+        // 前端传来的单位是万，后端存储的是原始值，需要转换
+        if (minAmount != null) {
+            criteria.setMinAmount(minAmount * 10000);
         }
 
-        if (exchangeId != null && instrumentId != null && targetDate != null) {
-            Optional<StockAnalysisResult> result = service.findByExchangeIdAndInstrumentIdAndTargetDate(
-                    exchangeId, instrumentId, targetDate);
-            return result.map(r -> ResponseEntity.ok(List.of(r)))
-                    .orElse(ResponseEntity.ok(List.of()));
-        }
-
-        if (exchangeId != null && instrumentId != null) {
-            return ResponseEntity.ok(service.findByExchangeIdAndInstrumentId(exchangeId, instrumentId));
-        }
-
-        if (targetDate != null) {
-            return ResponseEntity.ok(service.findByTargetDate(targetDate));
-        }
-
-        if (minRanking != null && maxRanking != null) {
-            return ResponseEntity.ok(service.findByRankingBetween(minRanking, maxRanking));
-        }
-
-        if (minScore != null && maxScore != null) {
-            return ResponseEntity.ok(service.findByScoreBetween(minScore, maxScore));
-        }
-
-        return ResponseEntity.ok(service.findAll());
+        List<StockAnalysisResult> results = service.search(criteria);
+        return ResponseEntity.ok(results);
     }
 
     /**
